@@ -130,8 +130,13 @@ A small corner lot floating on white:
   the thermos (in your hand while pouring), the *yerbera*, a bag of *bizcochitos*.
 
 ### 3.2 The gourd (readability — the riskiest part)
+> **Planning note (D1):** the engine's scale is fixed at 10 px per world unit (a head is ~5 px), so a
+> to-scale gourd would be 2–3 px. The pour rig below (your hands, the thermos, the gourd interior) is
+> therefore drawn **in screen space** at the bottom centre, overlapping the island's near edge, and is
+> not to world scale. The cebador is not drawn as a full figure. While a friend has the mate, a small
+> to-scale gourd travels in the world. See the plan's decision D1.
 - Camera framed so the table spans roughly the middle third of the canvas. You sit at the near side;
-  the gourd is in the foreground at **~16–18 px** wide, seen from above at 30° so its mouth is visible.
+  the gourd (screen-space rig, see D1) is in the foreground at **~16–18 px** wide, seen from above at 30° so its mouth is visible.
 - Inside it, drawn every frame:
   - The **yerba mound** as a green slope against the far wall.
   - The **side hole** by the near wall; water there reads as a darker, glossy pool.
