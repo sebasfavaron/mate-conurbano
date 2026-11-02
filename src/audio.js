@@ -135,6 +135,48 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
       });
     },
 
+    // a mid-sized street dog: a short pitched "woof" through a mouth-like band, plus a breathy burst
+    bark(pan = .3, at = 0) {
+      if (!ctx) return;
+      const t = ctx.currentTime + at;
+      const o = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = ctx.createGain(), p = ctx.createStereoPanner();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(420, t);
+      o.frequency.linearRampToValueAtTime(560, t + .025);
+      o.frequency.exponentialRampToValueAtTime(230, t + .13);
+      bp.type = 'bandpass'; bp.frequency.value = 850; bp.Q.value = 1.6;
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(.32, t + .012);
+      g.gain.exponentialRampToValueAtTime(.001, t + .16);
+      p.pan.value = Math.max(-1, Math.min(1, pan));
+      o.connect(bp).connect(g).connect(p).connect(master);
+      o.start(t); o.stop(t + .18);
+      const n = ctx.createBufferSource(), nb = ctx.createBiquadFilter(), ng = ctx.createGain();
+      n.buffer = noise; nb.type = 'bandpass'; nb.frequency.value = 1300; nb.Q.value = 1.2;
+      ng.gain.setValueAtTime(.16, t); ng.gain.exponentialRampToValueAtTime(.001, t + .09);
+      n.connect(nb).connect(ng).connect(p);
+      n.start(t, Math.random()); n.stop(t + .1);
+    },
+
+    // a benteveo somewhere in the paraíso: "bien-te-veo", three quick whistles
+    bird(pan = 0) {
+      if (!ctx) return;
+      const t0 = ctx.currentTime, p = ctx.createStereoPanner();
+      p.pan.value = pan;
+      p.connect(master);
+      [[2500, 2900, 0, .11], [2150, 2100, .16, .09], [2600, 2250, .3, .17]].forEach(([a, b, at, d]) => {
+        const o = ctx.createOscillator(), g = ctx.createGain(), t = t0 + at;
+        o.type = 'sine';
+        o.frequency.setValueAtTime(a, t);
+        o.frequency.linearRampToValueAtTime(b, t + d);
+        g.gain.setValueAtTime(0, t);
+        g.gain.linearRampToValueAtTime(.045, t + .02);
+        g.gain.linearRampToValueAtTime(0, t + d);
+        o.connect(g).connect(p);
+        o.start(t); o.stop(t + d + .02);
+      });
+    },
+
     duck,
   };
 

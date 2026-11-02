@@ -364,12 +364,14 @@ const RIG = {
 };
 const C = {
   ink: rgb(36, 30, 30), steel: rampOf([170, 176, 184]), cap: rampOf([196, 52, 44]), gourd: rampOf([124, 98, 54]),
-  rim: rampOf([200, 196, 184]), skin: rampOf([224, 172, 134]), sleeve: rampOf([70, 98, 82]),
+  rim: rampOf([200, 196, 184]), skin: rampOf([226, 176, 138]), sleeve: rampOf([62, 74, 96]), cuff: rampOf([84, 96, 118]),
+  thermos: rampOf([66, 112, 78]), cup: rampOf([58, 58, 62]),
   yerba: [98, 142, 58], yerbaWet: [52, 86, 40], yerbaPale: [176, 178, 128], hole: rgb(40, 36, 28),
   water: rgb(132, 186, 222), waterDeep: rgb(92, 150, 196), shine: rgb(236, 248, 255), stream: rgb(156, 206, 238),
   palito: rgb(214, 204, 150), bombilla: rampOf([200, 204, 214]), foam: rgb(222, 230, 186), foamDark: rgb(176, 196, 140),
 };
-const rigFx = { tilt: 0, t: 0, drops: [] };
+const rigFx = { tilt: 0, t: 0, flecks: [] };
+const DRY_DUST = rgb(214, 210, 150), STEAM = rgb(244, 244, 240);
 
 function px(x, y, c) {
   x |= 0; y |= 0;
@@ -395,40 +397,103 @@ function shape(x0, y0, x1, y1, inside, ramp) {
   return mask;
 }
 
-function arm(fromX, fromY, toX, toY, width, sleeveTo) {
+// A forearm from the bottom edge: tapered, a sleeve with a ribbed cuff, then skin to the wrist.
+function arm(fromX, fromY, toX, toY, w0, w1, sleeveTo) {
   const len = Math.hypot(toX - fromX, toY - fromY), dx = (toX - fromX) / len, dy = (toY - fromY) / len;
-  shape(Math.min(fromX, toX) - width, Math.min(fromY, toY) - width, Math.max(fromX, toX) + width, Math.min(H - 1, Math.max(fromY, toY) + width), (x, y) => {
+  const pad = Math.max(w0, w1) + 1;
+  shape(Math.min(fromX, toX) - pad, Math.min(fromY, toY) - pad, Math.max(fromX, toX) + pad, Math.min(H - 1, Math.max(fromY, toY) + pad), (x, y) => {
     const a = (x - fromX) * dx + (y - fromY) * dy, b = (x - fromX) * -dy + (y - fromY) * dx;
-    if (a < 0 || a > len || Math.abs(b) > width) return null;
-    const ramp = a < sleeveTo * len ? C.sleeve : C.skin;
-    return ramp[clamp(Math.round(2.6 - b / width * 1.2), 1, 4)];
+    const u = a / len, w = lerp(w0, w1, u);
+    if (a < 0 || a > len || Math.abs(b) > w) return null;
+    const side = b / w; // -1 lit edge, +1 shaded edge
+    if (u < sleeveTo - .1) return C.sleeve[clamp(Math.round(2.7 - side * 1.3 + (hash(x | 0, y | 0) > .9 ? -.5 : 0)), 1, 4)];
+    if (u < sleeveTo) return C.cuff[(Math.round(a) % 2 ? 2 : 3) - (side > .5 ? 1 : 0)];
+    return C.skin[clamp(Math.round(2.9 - side * 1.2), 1, 4)];
   });
 }
 
-function fist(cx, cy, rx, ry) {
-  shape(cx - rx - 1, cy - ry - 1, cx + rx + 1, cy + ry + 1, (x, y) => {
-    const u = (x - cx) / rx, v = (y - cy) / ry;
+// Your left hand around the thermos: four fingers wrapping the body, the thumb along it, the back of the hand.
+function thermosHand(local, toScreen, half) {
+  const back = toScreen(-1.5, -half - 2.6);
+  shape(back[0] - 7, back[1] - 7, back[0] + 7, back[1] + 7, (x, y) => {
+    const [a, b] = local(x, y), u = (a + 1.5) / 4.6, v = (b + half + 2.6) / 3.4;
     if (u * u + v * v > 1) return null;
-    return C.skin[clamp(Math.round(3 - u * .8 - v * .9), 1, 4)];
+    return C.skin[clamp(Math.round(3 - v * .8 - u * .4), 1, 4)];
   });
-  for (let k = -1; k <= 1; k++) px(cx + k * 2, cy + 1, C.skin[1]); // knuckle creases
+  const r = half + 9;
+  // four fingers as one block (one ink outline), soft creases between them and rounded tips
+  shape(RIG.pivot.x - r, RIG.pivot.y - r, RIG.pivot.x + r, RIG.pivot.y + r, (x, y) => {
+    const [a, b] = local(x, y);
+    if (a < -6.6 || a > 4 || b < -half - 1.6 || b > half + 1) return null;
+    const f = (a + 6.6) / 2.65, i = Math.min(3, Math.floor(f)), t = f - i;
+    const tip = b - (half - .4);
+    if (tip > 0 && (t - .5) * (t - .5) * 7 + tip * tip > 1.6) return null;
+    if (i > 0 && t < .2 && b > -half + .5) return C.skin[1];
+    return C.skin[clamp(Math.round(3.3 - (b / half) * .7 - (t - .5) * .8), 2, 4)];
+  });
+  // thumb along the near side, pointing to the spout
+  shape(RIG.pivot.x - r, RIG.pivot.y - r, RIG.pivot.x + r, RIG.pivot.y + r, (x, y) => {
+    const [a, b] = local(x, y), u = (a - 4.2) / 3.6, v = (b + half + .6) / 1.7;
+    if (u * u + v * v > 1) return null;
+    return C.skin[clamp(Math.round(3.4 - v * .9), 1, 4)];
+  });
 }
 
+// An Argentine thermos: hammered green body, steel bands, a dark cup for a cap and the steel pouring spout.
 function drawThermos(angle, glow) {
   const { x: ox, y: oy } = RIG.pivot, { back, front, half } = RIG.thermo;
   const ax = Math.sin(angle), ay = -Math.cos(angle);
   const local = (x, y) => [(x - ox) * ax + (y - oy) * ay, (x - ox) * -ay + (y - oy) * ax];
+  const toScreen = (a, b) => [ox + ax * a - ay * b, oy + ay * a + ax * b];
   const r = back + front + 4;
   const mask = shape(ox - r, oy - r, ox + r, oy + r, (x, y) => {
     const [a, b] = local(x, y);
-    const w = a > front - 3 ? half - 2.2 : half;   // narrower spout neck
+    const spout = a > front - 3, cup = a > front - 9 && !spout;
+    const w = spout ? half - 2.6 : cup ? half - .6 : half;
     if (a < -back || a > front || Math.abs(b) > w) return null;
-    const l = .78 - b / half * .42 + (a > front - 3 ? .1 : 0);
-    if (a > front - 9 && a <= front - 3) return shadeOf(C.cap, l, x | 0, y | 0);
-    return l;
-  }, C.steel);
+    const cyl = .8 - (b / w) * .45 - (Math.abs(b / w + .35) < .16 ? -.22 : 0); // lit from the left, with a highlight stripe
+    const ix = x | 0, iy = y | 0;
+    if (spout || (a > front - 10 && a <= front - 9) || a < -back + 1.4) return shadeOf(C.steel, cyl + .05, ix, iy);
+    if (cup) return shadeOf(C.cup, cyl + (Math.round(a) % 3 === 0 ? -.12 : 0), ix, iy);
+    const hammer = (hash(Math.round(a * .7), Math.round(b * .9)) - .5) * .28;
+    return shadeOf(C.thermos, cyl + hammer, ix, iy);
+  });
   if (glow) outlineGlow(mask);
-  return [ox + ax * front, oy + ay * front];
+  thermosHand(local, toScreen, half);
+  return toScreen(front, 0);
+}
+
+// Your right hand under the gourd: palm beneath, three fingertips up the side, the thumb on the other side.
+function gourdHand(full) {
+  const { body: g } = RIG, cx = g.x, cy = g.y + g.ry - 1;
+  shape(cx - 13, cy - 6, cx + 13, cy + 6, (x, y) => {
+    const u = (x - cx) / 12, v = (y - cy) / 4.6;
+    if (u * u + v * v > 1) return null;
+    return C.skin[clamp(Math.round(3 - v * 1.1 - u * .3), 1, 4)];
+  });
+  if (!full) {
+    // empty and cupped: fingertips along the top edge of the palm
+    for (let k = 0; k < 4; k++) fingertip(cx - 8 + k * 4.6, cy - 4, 2.2, 1.8);
+    return;
+  }
+  for (const [ang, rx, ry] of [[198, 2.6, 2.1], [214, 2.6, 2.1], [230, 2.4, 2]]) {
+    const t = ang * Math.PI / 180;
+    fingertip(g.x + Math.cos(t) * (g.rx - .5), g.y - Math.sin(t) * (g.ry - .5), rx, ry);
+  }
+  // thumb up the right side
+  shape(g.x + 9, g.y + 2, g.x + 18, g.y + 15, (x, y) => {
+    const u = (x - (g.x + 13.2)) / 2.3, v = (y - (g.y + 9)) / 4.2;
+    if (u * u + v * v > 1) return null;
+    return C.skin[clamp(Math.round(3.1 - u * .9), 1, 4)];
+  });
+}
+
+function fingertip(cx, cy, rx, ry) {
+  shape(cx - rx - 1, cy - ry - 1, cx + rx + 1, cy + ry + 1, (x, y) => {
+    const u = (x - cx) / rx, v = (y - cy) / ry;
+    if (u * u + v * v > 1) return null;
+    return C.skin[clamp(Math.round(3.3 - v * .8 - u * .4), 1, 4)];
+  });
 }
 
 function outlineGlow(mask) {
@@ -447,7 +512,7 @@ function moundEdge(u, height) {
   return lerp(-.55, .25, height) - .55 * u;   // the mound covers v below this line, sloping to the hole
 }
 
-function drawRigGourd(fill, yerba, wetTop, overflow, glow) {
+function drawRigGourd(fill, yerba, wetTop, overflow, glow, dry = 0) {
   const { mouth: m, body: b } = RIG;
   // belly
   const belly = shape(b.x - b.rx - 1, m.y, b.x + b.rx + 1, b.y + b.ry + 1, (x, y) => {
@@ -478,7 +543,10 @@ function drawRigGourd(fill, yerba, wetTop, overflow, glow) {
     }
     if (v < moundEdge(u, height)) {
       const crest = clamp((moundEdge(u, height) - v) / .9, 0, 1);
+      // dry yerba before the first pour is dusty; once wet it turns deep green
+      if (dry > 0 && hash(ix * 3, iy * 5) < .3 * dry) return DRY_DUST;
       let c = mixRgb(C.yerba, C.yerbaPale, clamp((1 - yerba) * 1.1, 0, 1));
+      c = mixRgb(c, [150, 168, 92], dry * .7);
       c = mixRgb(c, C.yerbaWet, clamp(wetTop * (1.2 - crest * .4), 0, 1) * .85);
       return shadeOf(rampOf(c.map(Math.round)), .55 + crest * .35 - u * .15, ix, iy);
     }
@@ -541,17 +609,52 @@ export function drawRig(state, t) {
   const angle = lerp(0, 105 * Math.PI / 180, inHand ? rigFx.tilt : 0);
 
   // your right hand under the gourd (or empty and cupped while the mate goes round)
-  arm(RIG.body.x + 10, H + 6, RIG.body.x + 3, RIG.body.y + 13, 6, .55);
+  arm(RIG.body.x + 22, H + 8, RIG.body.x + 5, RIG.body.y + RIG.body.ry + 1, 8, 5, .62);
   if (inHand) {
-    drawRigGourd(fill, state.yerba, state.wetTop, state.phase === 'pour' ? state.turn.overflow : 0, pulse);
-    fist(RIG.body.x - 2, RIG.body.y + 14, 9, 4);
-  } else fist(RIG.body.x + 3, RIG.body.y + 12, 8, 5);
+    const dry = state.tutorial && state.phase === 'pour' ? 1 - clamp(fill / T.FILL_OK, 0, 1) : 0;
+    drawRigGourd(fill, state.yerba, state.wetTop, state.phase === 'pour' ? state.turn.overflow : 0, pulse, dry);
+    gourdHand(true);
+    if (fill > .15) drawSteam(t, fill);
+  } else gourdHand(false);
 
   // your left hand on the thermos
-  arm(RIG.pivot.x - 22, H + 6, RIG.pivot.x - 2, RIG.pivot.y + 4, 6, .6);
+  const wrist = [RIG.pivot.x - Math.cos(angle) * (RIG.thermo.half + 3), RIG.pivot.y - Math.sin(angle) * (RIG.thermo.half + 3) + 2];
+  arm(RIG.pivot.x - 34, H + 8, wrist[0], wrist[1], 8, 4.5, .6);
   const spout = drawThermos(angle, pulse);
-  fist(RIG.pivot.x - 1, RIG.pivot.y + 2, 6, 5);
-  if (state.flow > 0 && state.phase !== 'over') drawStream(spout, landingPoint(state.land, state.yerba), state.flow);
+  if (state.flow > 0 && state.phase !== 'over') {
+    const land = landingPoint(state.land, state.yerba);
+    drawStream(spout, land, state.flow);
+    // yerba kicked up where the stream hits the mound: the wash, made visible
+    if (!STILL && state.topFrac > .2) {
+      const n = dt * 90 * state.topFrac * state.flow / T.FLOW_MAX;
+      for (let k = 0; k < n || (k === 0 && Math.random() < n); k++) {
+        rigFx.flecks.push({ x: land[0], y: land[1], vx: (Math.random() - .6) * 40, vy: -20 - Math.random() * 30, born: t });
+      }
+    }
+  }
+  drawFlecks(t);
+}
+
+function drawFlecks(t) {
+  const g = 160;
+  rigFx.flecks = rigFx.flecks.filter(f => t - f.born < .4 && t >= f.born);
+  for (const f of rigFx.flecks) {
+    const a = t - f.born, x = f.x + f.vx * a, y = f.y + f.vy * a + g * a * a / 2;
+    px(x, y, hash(f.vx, f.vy) > .5 ? rgb(...C.yerba) : rgb(...C.yerbaPale));
+  }
+}
+
+// hot water: thin wisps rising off the mate, every other pixel so they read as see-through
+function drawSteam(t, fill) {
+  if (STILL) return;
+  const { mouth: m } = RIG;
+  for (let k = 0; k < 3; k++) {
+    const rise = (t * 9 + k * 6.3) % 14, sway = Math.sin(t * 2.2 + k * 2 + rise * .35) * 2.2;
+    for (let j = 0; j < 4; j++) {
+      const y = Math.round(m.y - 3 - rise - j), x = Math.round(m.x - 4 + k * 5 + sway + j * .4);
+      if ((x + y) % 2 === 0 && hash(k * 13 + j, Math.floor(t * 6)) < fill * .9 - rise / 20) px(x, y, STEAM);
+    }
+  }
 }
 
 /* ---------- the furniture truck, the guest and dusk ---------- */
@@ -676,12 +779,52 @@ export function gradeDusk(dusk) {
   }
 }
 
+/* ---------- the patio dog ---------- */
+const DOG_COAT = [184, 132, 74], DOG_CHEST = [236, 226, 206], DOG_DARK = [92, 64, 44];
+
+export function drawDog(dog, t) {
+  const fx = Math.cos(dog.yaw), fy = Math.sin(dog.yaw), sx = -fy, sy = fx;
+  const k = 1.3; // a medium street dog: at true scale it is only a few pixels
+  const P = (a, b, c) => [dog.x + (fx * a + sx * b) * k, dog.y + (fy * a + sy * b) * k, c * k];
+  const add = (a, b, r0, r1, c) => dynamicAdd(a, b, r0 * k, r1 * k, () => c);
+  const since = t - dog.barkAt, barking = since < .25;
+  const lying = dog.mode === 'lie' && since > 1.2;
+  const step = dog.mode === 'run' && !STILL ? Math.sin(t * 16) * .12 : 0;
+  const hop = barking && !STILL ? .05 : 0;
+  const bodyZ = lying ? .14 : .34 + hop;
+  // legs
+  if (lying) {
+    add(P(.3, .1, .06), P(.5, .12, .05), .05, .045, DOG_COAT);
+    add(P(.3, -.1, .06), P(.5, -.12, .05), .05, .045, DOG_COAT);
+  } else {
+    for (const [a, b, ph] of [[.22, .09, 0], [.22, -.09, Math.PI], [-.2, .09, Math.PI], [-.2, -.09, 0]]) {
+      const swing = step * Math.sin(ph + 1);
+      add(P(a, b, bodyZ - .05), P(a + swing, b, .04), .05, .04, DOG_COAT);
+    }
+  }
+  // body, chest, head
+  add(P(-.24, 0, bodyZ + .02), P(.2, 0, bodyZ + .04), .14, .15, DOG_COAT);
+  add(P(.24, 0, bodyZ - .02), P(.26, 0, bodyZ + .04), .1, .1, DOG_CHEST);
+  const headUp = lying ? 0 : barking ? .12 : .06;
+  const head = P(lying ? .42 : .36, 0, bodyZ + (lying ? .02 : .16) + headUp);
+  dynamicAdd(head, head, .12 * k, .12 * k, () => DOG_COAT);
+  const hz = head[2] / k, snout = P(lying ? .58 : .5, 0, hz - .03 + (barking ? .03 : 0));
+  add(head, snout, .07, .055, DOG_COAT);
+  plot(snout[0] + fx * .05, snout[1] + fy * .05, snout[2] + .02, rgb(...DOG_DARK));
+  if (barking) plot(snout[0] + fx * .04, snout[1] + fy * .04, snout[2] - .05, rgb(160, 60, 60));
+  for (const b of [.08, -.08]) add(P(lying ? .38 : .32, b, hz + .1), P(lying ? .34 : .28, b * 1.3, hz + .17), .045, .03, DOG_DARK); // ears
+  // tail: wags after a good mate or while barking, rests otherwise
+  const wag = !STILL && (t < dog.wagUntil || barking || dog.mode !== 'lie') ? Math.sin(t * 18) * .12 : 0;
+  add(P(-.36, 0, bodyZ + .06), P(-.52, wag, bodyZ + (lying ? .04 : .22)), .045, .035, DOG_COAT);
+}
+
 /* ---------- per frame ---------- */
-export function drawScene(state, t) {
+export function drawScene(state, t, amb) {
   pix.set(bakedPix);
   zb.set(bakedZ);
   pendingShadows.length = 0;
   drawTruck(state, t);
+  if (amb) drawDog(amb.dog, t);
   drawPeople(state, t);
   drawDust(t);
   truckFx.lastT = t;

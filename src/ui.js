@@ -19,6 +19,13 @@ export function formatEnd(over, best) {
   ];
 }
 
+// One line on the end screen that says what to do differently next run.
+export function endHint(over, stats) {
+  if (over.reason === 'gracias') return 'acordate de quién dijo gracias';
+  if (stats.washSpill > stats.washTop) return `se rebalsó ${stats.spills === 1 ? 'una vez' : `${stats.spills} veces`}: soltá cuando aparece la espuma`;
+  return 'el chorro lavó la montañita: inclinalo menos, que caiga al costado';
+}
+
 export function canRestart(sinceOver, pressedEdge) {
   return sinceOver >= T.RESTART_GUARD && pressedEdge;
 }
@@ -89,15 +96,16 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
             if (!e.palmOnly) say(e.seat, 'gracias', state);
             if (!store.get('seenGracias', false)) { store.set('seenGracias', true); setStatus(LINES.tutorial.gracias); }
             break;
-          case 'tip': if (e.name === 'shift') setStatus(LINES.tutorial.shiftTip); break;
+          case 'tip': setStatus(e.name === 'shift' ? LINES.tutorial.shiftTip : LINES.tutorial[e.name]); break;
           case 'gameOver': {
             if (e.reason === 'gracias') say(e.seat, 'bomb', state);
             const best = Math.max(store.get('best', 0), e.score);
             store.set('best', best);
             showBest();
             const lines = formatEnd(e, best);
-            end.firstElementChild.innerHTML = lines.slice(0, 4).map((l, i) => `<p class="${i ? 'muted' : ''}">${l}</p>`).join('')
-              + `<button type="button" id="again">${lines[4]}</button>`;
+            lines.splice(3, 0, endHint(e, state.stats));
+            end.firstElementChild.innerHTML = lines.slice(0, 5).map((l, i) => `<p class="${i ? 'muted' : ''}">${l}</p>`).join('')
+              + `<button type="button" id="again">${lines[5]}</button>`;
             end.querySelector('#again').addEventListener('click', () => onRestart?.(true));
             end.hidden = false;
             break;

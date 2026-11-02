@@ -20,11 +20,14 @@ export const LINES = {
   guestAsk: ['Una mano, maestro, ¿me convidás uno?'],
   guestThanks: ['Gracias, jefe'],
   tutorial: {
-    start: 'Mantené espacio, tocá y arrastrá hacia abajo, o apretá el gatillo para cebar',
+    start: 'El primero es tuyo, para mojar la yerba. Mantené espacio, arrastrá hacia abajo o apretá el gatillo',
     pouring: 'Despacio cae al costado. Si inclinás mucho, mojás la montañita',
-    first: 'El primero es del cebador',
+    first: 'El primero es del cebador. Ahora sí, a cebarle a la ronda',
     gracias: 'Dijo gracias: ya no le cebes más. Dejá pasar el mate',
     shiftTip: 'Tip: con Shift apretado inclinás más despacio',
+    aim: 'Si el chorro pega en la montañita, la yerba se lava. Inclinalo menos y cae en el agujero',
+    foam: 'Cuando aparece la espuma, soltá: el mate está listo',
+    washing: 'La montañita se está poniendo pálida: la yerba se lava',
   },
 };
 

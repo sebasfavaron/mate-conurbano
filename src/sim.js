@@ -31,7 +31,8 @@ export function createRun({ seed = 1, skipTutorial = false } = {}) {
     seats, turn: newTurn(0, false, true), lastSeat: 0,
     truck: { active: false, progress: 0, speed: 0, nextAt: 0, guestPass: false, stopped: false, signalled: false, slowTime: 0 },
     guest: { planned: false, done: false },
-    lastLavadoAt: -Infinity, tipShown: false, arrivals: 0, over: null, rng,
+    lastLavadoAt: -Infinity, tipShown: false, tips: {}, arrivals: 0, over: null, rng,
+    stats: { washTop: 0, washSpill: 0, spills: 0, shortGrabs: 0 },
   };
   state.guest.planned = nextRandom(rng) < T.P_GUEST;
   state.truck.nextAt = randomBetween(rng, T.TRUCK_FIRST_MIN, T.TRUCK_FIRST_MAX);
@@ -90,12 +91,20 @@ function pourTick(s, h, tilt, aim, events) {
     const vol = flow * h;
     const over = Math.max(0, t.fill + vol - 1);
     t.fill = Math.min(1, t.fill + vol);
-    let wash = T.WASH_TOP * flow * aim.topFrac * h;
+    const top = T.WASH_TOP * flow * aim.topFrac * h;
+    let wash = top;
     if (over > 0) {
       t.overflow += over;
-      if (!t.spilled) { t.spilled = true; wash += T.WASH_SPILL; events.push({ type: 'spill', seat: t.seat }); }
+      if (!t.spilled) {
+        t.spilled = true; wash += T.WASH_SPILL; s.stats.spills += 1;
+        events.push({ type: 'spill', seat: t.seat });
+        if (!s.tutorial) tip(s, events, 'foam');
+      }
       wash += T.WASH_OVERFLOW * over;
     }
+    s.stats.washTop += top;
+    s.stats.washSpill += wash - top;
+    if (!s.tutorial && s.yerba > T.TIP_WASHING_AT && s.yerba - wash <= T.TIP_WASHING_AT) tip(s, events, 'washing');
     s.wetTop = Math.min(1, s.wetTop + WET_RISE * flow * aim.topFrac * h);
     s.yerba -= wash;
     t.pourWash += wash;
@@ -123,7 +132,8 @@ function endPour(s, events) {
   t.pouring = false;
   t.spilled = false;
   events.push({ type: 'pourEnd', wash: t.pourWash });
-  if (t.pourWash > T.SHIFT_TIP_WASH) showTip(s, events);
+  if (!s.tutorial && t.pourWash > T.TIP_AIM_WASH && !s.tips.aim) tip(s, events, 'aim');
+  else if (t.pourWash > T.SHIFT_TIP_WASH) showTip(s, events);
   t.pourWash = 0;
 }
 
@@ -131,6 +141,13 @@ function showTip(s, events) {
   if (s.tipShown) return;
   s.tipShown = true;
   events.push({ type: 'tip', name: 'shift' });
+}
+
+// Contextual tips, each at most once per run: 'aim', 'foam', 'washing' (the Shift tip has its own rule).
+function tip(s, events, name) {
+  if (s.tips[name]) return;
+  s.tips[name] = true;
+  events.push({ type: 'tip', name });
 }
 
 export function patienceWindow(s) {
@@ -147,6 +164,7 @@ function handOff(s, events, grabbed) {
     return setPhase(s, 'drink');
   }
   const value = good ? (s.seats[t.seat].guest ? T.GUEST_VALUE : 1) : 0;
+  if (grabbed && !good) { s.stats.shortGrabs += 1; tip(s, events, 'foam'); }
   s.served += 1;
   s.score += value;
   s.yerba -= T.WEAR_BASE;

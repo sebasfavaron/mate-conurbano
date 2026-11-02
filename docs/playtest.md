@@ -26,6 +26,14 @@ Run `npm run serve` and play a few full runs with each input you have. Tick what
 - [ ] The guest feels like a reward, and the telegraph (slow down, double honk, wave, stop at the gate) is unmistakable.
 - [ ] Shift fine mode helps once the tip appears.
 - [ ] Holding Space through a game over does not restart; a fresh press after a moment does.
+- [ ] The tips (aim, foam, washing, Shift) arrive when they help and never feel like nagging.
+- [ ] The end-screen hint names what actually went wrong in the run.
+
+## Ambience
+
+- [ ] The dog's bark sounds like a dog, not a beep; it is not too frequent (every 30–75 s at rest).
+- [ ] The dog running to the fence and barking at the truck reads at 2×.
+- [ ] The benteveo call is pleasant and quiet; the steam and the yerba flecks don't distract from the pour.
 
 ## Tuning log
 

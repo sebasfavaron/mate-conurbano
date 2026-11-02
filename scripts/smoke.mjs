@@ -81,6 +81,14 @@ try {
     m.feed([{ type: 'truckStop' }, { type: 'guestArrive' }]);
     for (let i = 0; i < 100; i++) m.step(.02, 0);
   });
+  await shot('08b-dog-barks', () => {
+    const m = window.__mate; m.reset(2, { skipTutorial: true });
+    Object.assign(m.state.truck, { active: true, progress: .3, speed: 1 / 30.3, nextAt: 1e9 });
+    m.state.rondaTime = 100;
+    m.ambience.update(m.state, .02, [{ type: 'truckEnter' }]);
+    for (let i = 0; i < 140; i++) m.step(.02, 0);
+    m.ambience.dog.barkAt = m.state.time; m.step(.02, 0);
+  });
   await shot('10-dusk', () => {
     const m = window.__mate; m.reset(3, { skipTutorial: true });
     m.state.rondaTime = 720; m.state.truck.nextAt = 1e9;

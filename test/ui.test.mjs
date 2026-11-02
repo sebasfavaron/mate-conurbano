@@ -10,3 +10,10 @@ test('formatEnd for lavado and gracias, singular mate', () => {
 test('canRestart needs both the guard and a fresh press', () => {
   assert.equal(canRestart(.5, true), false); assert.equal(canRestart(1, false), false); assert.equal(canRestart(1, true), true);
 });
+import { endHint } from '../src/ui.js';
+test('endHint names the main cause', () => {
+  assert.match(endHint({ reason: 'lavado' }, { washTop: .5, washSpill: .2, spills: 2 }), /montañita/);
+  assert.equal(endHint({ reason: 'lavado' }, { washTop: .1, washSpill: .5, spills: 3 }), 'se rebalsó 3 veces: soltá cuando aparece la espuma');
+  assert.match(endHint({ reason: 'lavado' }, { washTop: 0, washSpill: .5, spills: 1 }), /una vez/);
+  assert.match(endHint({ reason: 'gracias' }, {}), /gracias/);
+});

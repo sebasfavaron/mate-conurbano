@@ -6,6 +6,7 @@ import { createAudio } from './audio.js';
 import { createUi, canRestart } from './ui.js';
 import { createStore } from './store.js';
 import { T } from './tuning.js';
+import { createAmbience } from './ambience.js';
 
 const canvas = document.getElementById('c');
 const store = createStore();
@@ -13,12 +14,15 @@ const input = bindInput(canvas);
 const audio = createAudio({ musicUrl: 'audio/musica.mp3', truckUrl: 'audio/camion.mp3', store });
 let state = createRun({ seed: Date.now() >>> 0 });
 let started = false, overFor = 0, last = performance.now();
+const ambience = createAmbience();
+let ambientEvents = [];
 
 const ui = createUi({ store, audio, canvas, headScreen, onRestart: () => restart() });
 ui.intro();
 
 function dispatch(events) {
   if (!events.length) return;
+  ambientEvents.push(...events);
   sceneEvents(events, state);
   ui.handle(events, state);
   audio.handle(events, state);
@@ -40,7 +44,8 @@ document.getElementById('rules-open').addEventListener('click', () => input.rele
 const mate = window.__mate = {
   get state() { return state; },
   drawn: 0,
-  step(dt, tilt) { const r = step(state, dt, tilt); dispatch(r.events); drawScene(state, state.time); mate.drawn++; return r.events; },
+  step(dt, tilt) { const r = step(state, dt, tilt); dispatch(r.events); ambience.update(state, dt, ambientEvents); ambientEvents = []; drawScene(state, state.time, ambience); mate.drawn++; return r.events; },
+  ambience,
   feed(events) { dispatch(events); },
   reset(seed, opts = {}) { state = createRun({ seed, ...opts }); resetScene(); ui.reset(); drawScene(state, 0); },
   ui,
@@ -65,9 +70,14 @@ function frame(now) {
     overFor += dt;
     if (canRestart(overFor, edge)) restart();
   }
+  for (const cue of ambience.update(state, dt, ambientEvents)) {
+    if (cue.type === 'bark') audio.bark(project(cue.x, cue.y, 0).sx / 180 - 1, cue.delay);
+    else if (cue.type === 'bird') audio.bird(cue.pan);
+  }
+  ambientEvents = [];
   audio.update(state, dt);
   ui.frame(state, dt);
-  drawScene(state, now / 1000);
+  drawScene(state, now / 1000, ambience);
   mate.drawn++;
   requestAnimationFrame(frame);
 }

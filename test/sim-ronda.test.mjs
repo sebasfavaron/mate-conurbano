@@ -123,3 +123,20 @@ test('a slightly brave early pour beats the tease', () => {
   const ev = until(s, st => (st.phaseTime > .4 && st.turn.fill < .86 ? .6 : 0), (st, e) => e.some(x => x.type === 'handoff'));
   assert.ok(!types(ev).includes('tease')); assert.equal(find(ev, 'handoff').good, true);
 });
+test('contextual tips: aim on a washing pour, foam on a short grab, washing at 60 %', () => {
+  const s = afterTutorial();
+  const a = until(s, st => (st.phase === 'pour' && st.turn.fill < .5 ? 1 : 0), (st, e) => e.some(x => x.type === 'handoff'));
+  const names = a.filter(e => e.type === 'tip').map(e => e.name);
+  assert.ok(names.includes('aim')); assert.ok(names.includes('foam'));
+  assert.equal(s.stats.shortGrabs, 1); assert.ok(s.stats.washTop > .02);
+  until(s, 0, (st, e) => e.some(x => x.type === 'turn'));
+  s.yerba = .61;
+  const b = until(s, 1, (st, e) => e.some(x => x.type === 'tip'));
+  assert.deepEqual(b.filter(e => e.type === 'tip').map(e => e.name), ['washing']);
+});
+test('each contextual tip fires once per run', () => {
+  const s = afterTutorial(); const names = [];
+  for (let i = 0; i < 4; i++) names.push(...until(s, st => (st.phase === 'pour' && st.turn.fill < .4 ? 1 : 0), (st, e) => e.some(x => x.type === 'turn')).filter(e => e.type === 'tip').map(e => e.name));
+  assert.equal(names.filter(n => n === 'aim').length, 1);
+  assert.equal(names.filter(n => n === 'foam').length, 1);
+});
