@@ -10,7 +10,7 @@ export function createAmbience(random = Math.random) {
 
   function bark(cues, n = 2) {
     dog.barkAt = clock;
-    for (let k = 0; k < n; k++) cues.push({ type: 'bark', delay: k * .32, x: dog.x, y: dog.y });
+    for (let k = 0; k < n; k++) cues.push({ type: 'bark', delay: k * .42, x: dog.x, y: dog.y });
   }
   function runTo(spot, then) { dog.mode = 'run'; dog.target = { ...spot, then }; }
 
