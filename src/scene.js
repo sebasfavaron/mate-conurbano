@@ -443,14 +443,14 @@ const lerp3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2],
 // Your hands, the thermos and the gourd, drawn pixel by pixel over the bottom centre and not to world scale.
 const RIG = {
   mouth: { x: 204, y: 230, rx: 15, ry: 8 },     // gourd opening seen from 30° above
-  body: { x: 204, y: 246, rx: 17, ry: 17 },     // calabaza belly below the mouth
+  body: { x: 204, y: 256, half: 12.5, top: -11, bottom: 10, arc: 2.5 }, // leather tube: centre, half width, rims, rim ellipse
   pivot: { x: 168, y: 214 },                    // your left fist, where the thermos turns
   thermo: { back: 16, front: 17, half: 6 },     // thermos length behind / ahead of the fist, half width
   hole: { u: .35, v: .45 },                     // centre of the side hole inside the mouth (unit ellipse)
   moundTop: { u: -.45, v: -.45 },               // dry crest against the far wall
 };
 const C = {
-  ink: rgb(36, 30, 30), steel: rampOf([170, 176, 184]), cap: rampOf([196, 52, 44]), gourd: rampOf([124, 98, 54]),
+  ink: rgb(36, 30, 30), steel: rampOf([170, 176, 184]), cap: rampOf([196, 52, 44]), gourd: rampOf([150, 82, 46]), leather: rampOf([118, 90, 64]), lace: rgb(230, 220, 190),
   rim: rampOf([200, 196, 184]), skin: rampOf([226, 176, 138]),
   thermos: rampOf([66, 112, 78]), cup: rampOf([58, 58, 62]),
   yerba: [98, 142, 58], yerbaWet: [52, 86, 40], yerbaPale: [176, 178, 128], hole: rgb(40, 36, 28),
@@ -533,20 +533,24 @@ function hand(parts) {
   });
 }
 
-// Your left hand round the thermos, in its turning frame: the heel of the hand on the near side, four fingers
-// wrapped across the body and the thumb up its edge towards the spout.
-function thermosHand(toScreen, half) {
-  const cap = (a0, b0, a1, b1, r0, r1 = r0) => [...toScreen(a0, b0), ...toScreen(a1, b1), r0, r1];
-  hand([cap(-7.5, -half - 1.6, 1, -half - 1, 3.2, 3),
-    ...[2.2, -1.4, -5, -8.3].map((a, k) => cap(a, -half, a - .4, k === 3 ? half + .2 : half + 1.2, k === 3 ? 1.6 : 2)),
-    cap(.5, -half - 1.6, 6, -half + .8, 2.1, 1.7)]);
+// A hand round an upright cylinder, in the cylinder's own frame (a along it, b across, ±half its edges): the
+// heel of the hand on one side, four fingers wrapped across the front and the thumb up the edge. k scales it.
+const FINGERS = [[2, 2.4, 1.3], [-2.6, 2.4, 1.2], [-7, 2, .4]]; // along the body, radius, tip past the edge
+function grip(toScreen, half, k = 1) {
+  const cap = (a0, b0, a1, b1, r0, r1 = r0) => [...toScreen(a0 * k, b0), ...toScreen(a1 * k, b1), r0 * k, r1 * k];
+  hand([cap(-7.5, -half - 1.6 * k, 1, -half - k, 3.2, 3),
+    ...FINGERS.map(([a, r, tip]) => cap(a, -half, a - .4, half + tip * k, r)),
+    cap(.5, -half - 1.6 * k, 6, -half + .8 * k, 2.1, 1.7)]);
 }
 
-// Your right hand is a round stump the gourd sits on.
-function stump() {
-  const { body: g } = RIG, y = g.y + g.ry - 1;
-  hand([[g.x - 1, y, g.x + 3, y, 5.5, 5.5]]);
+// Your right hand round the leather, mirrored so the heel sits on the right where the arm comes in, low enough
+// to leave the lacing showing. With the mate away it closes into a fist.
+const GRIP = { k: 1, dy: 4 };
+function gourdHand(holding) {
+  const { body: b } = RIG, cy = b.y + GRIP.dy, half = holding ? b.half : 5;
+  grip((a, w) => [b.x + b.half - half - w, cy - a], half, GRIP.k);
 }
+function gourdWrist() { const { body: b } = RIG; return [b.x + b.half + 3, b.y + GRIP.dy + 2]; }
 
 // An Argentine thermos: hammered green body, steel bands, a dark cup for a cap and the steel pouring spout.
 function drawThermos(angle, glow) {
@@ -568,7 +572,7 @@ function drawThermos(angle, glow) {
     return shadeOf(C.thermos, cyl + hammer, ix, iy);
   });
   if (glow) outlineGlow(mask);
-  thermosHand(toScreen, half);
+  grip(toScreen, half);
   return toScreen(front, 0);
 }
 
@@ -591,13 +595,28 @@ function moundEdge(u, height) {
 function drawRigGourd(fill, yerba, wetTop, overflow, glow, dry = 0, murk = 0) {
   const water1 = rgb(...mixRgb([132, 186, 222], MURK, murk)), water2 = rgb(...mixRgb([92, 150, 196], MURK_DEEP, murk));
   const { mouth: m, body: b } = RIG;
-  // belly
-  const belly = shape(b.x - b.rx - 1, m.y, b.x + b.rx + 1, b.y + b.ry + 1, (x, y) => {
-    const u = (x - b.x) / b.rx, v = (y - b.y) / b.ry;
-    const neck = y < m.y + m.ry ? Math.abs(x - m.x) <= m.rx + 1 + (y - m.y) * .3 : true;
-    if (u * u + v * v > 1 || !neck) return null;
-    return .72 - u * .45 - v * .2;
+  // a mate camionero: the calabaza flares out to the mouth from a tube of leather laced up one side
+  const top = b.y + b.top, bottom = b.y + b.bottom, reach = Math.max(b.half, m.rx + 1) + 1;
+  const neck = y => lerp(11, m.rx + .5, (1 - clamp((y - m.y) / (top - m.y), 0, 1)) ** 2);
+  const belly = shape(b.x - reach, m.y, b.x + reach, bottom + b.arc + 1, (x, y) => {
+    const dx = x - b.x, s = Math.sqrt(Math.max(0, 1 - (dx / b.half) ** 2)), front = top + b.arc * s;
+    if (Math.abs(dx) <= b.half && y >= front && y <= bottom + b.arc * s) {
+      if (y < front + 1) return C.leather[4];                         // the pale cut edge of the leather
+      const grain = (hash(x | 0, Math.floor(y / 6)) - .5) * .14;
+      return shadeOf(C.leather, .72 - dx / b.half * .5 + grain, x | 0, y | 0);
+    }
+    const w = neck(y);
+    if (y < front && Math.abs(dx) <= w) return .74 - dx / w * .45 - (y - m.y) / (top - m.y) * .1;
+    if (Math.abs(dx) <= b.half && y >= top - b.arc * s && y < front) return C.leather[1]; // inside the tube
+    return null;
   }, C.gourd);
+  // the lacing: a dark seam with little pale crosses stitched over it
+  const sx = b.x - b.half + 3;
+  for (let y = Math.ceil(top + b.arc * .6) + 1, k = 0; y < bottom + b.arc * .4; y++, k++) {
+    px(sx, y, C.leather[0]);
+    if (k % 4 === 1) px(sx, y, C.lace);
+    else if (k % 4 !== 3) { px(sx - 1, y, C.lace); px(sx + 1, y, C.lace); }
+  }
   // rim and inside
   const height = lerp(.35, 1, clamp(yerba, 0, 1));
   const hole = [RIG.hole.u, RIG.hole.v];
@@ -704,13 +723,12 @@ export function drawRig(state, t) {
   if (state.tutorial && state.phase === 'drink') fill *= 1 - clamp(state.phaseTime / T.DRINK_TIME, 0, 1);
   const angle = lerp(0, 105 * Math.PI / 180, inHand ? rigFx.tilt : 0);
 
-  // your right arm, the gourd sitting on its stump. Passing the mate, the arm lifts towards the table and
-  // lets go halfway through 'out'; it reaches up again to take it back.
+  // your right hand round the leather of the gourd, or closed on nothing while it goes round. Passing the
+  // mate, the arm lifts towards the table and lets go halfway through 'out'; it reaches up again to take it back.
   const { k: lift, holding } = rigReach(state);
   const home = { mx: RIG.mouth.x, my: RIG.mouth.y, bx: RIG.body.x, by: RIG.body.y };
   RIG.mouth.x += REACH[0] * lift; RIG.mouth.y += REACH[1] * lift; RIG.body.x += REACH[0] * lift; RIG.body.y += REACH[1] * lift;
-  arm(home.bx + 22, H + 8, RIG.body.x + 1, RIG.body.y + RIG.body.ry - 1, 4.7, .3);
-  stump();
+  arm(home.bx + 22, H + 8, ...gourdWrist(), 4.7, .3);
   if (holding && !inHand) {
     drawRigGourd(state.phase === 'out' ? fill : 0, state.yerba, state.wetTop, 0, false, 0, 0);
   } else if (inHand) {
@@ -725,6 +743,7 @@ export function drawRig(state, t) {
     drawRigGourd(fill, state.yerba, state.wetTop, state.phase === 'pour' ? state.turn.overflow : 0, pulse, dry, murk);
     if (fill > .15) drawSteam(t, fill);
   }
+  gourdHand(inHand || holding);
   Object.assign(RIG.mouth, { x: home.mx, y: home.my });
   Object.assign(RIG.body, { x: home.bx, y: home.by });
 
