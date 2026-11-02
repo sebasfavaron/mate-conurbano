@@ -24,6 +24,7 @@ export function formatEnd(over, best) {
 // What the popup over the gourd says after each hand-off.
 const RATING = {
   perfecto: ['¡Perfecto!', 'great'], 'muy bien': ['¡Muy bien!', 'great'], bien: ['Bien', 'ok'], zafa: ['Zafa', 'ok'],
+  skip: ['¡Bien recordado!', 'great'],
   sacado: ['¡Te lo sacaron!', 'bad'], corto: ['¡Te lo sacaron! · corto', 'bad'], seco: ['¡Te lo sacaron! · seco', 'bad'],
 };
 export function popupText(handoff) {
@@ -159,7 +160,7 @@ export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestar
             if (e.grabbed && state.turn.fill < .02) say(e.seat, 'grabEmpty', state);
             else if (e.grabbed && !e.good && !teased) say(e.seat, 'grab', state);
             break;
-          case 'skip': say(e.seat, 'skip', state); break;
+          case 'skip': say(e.seat, 'skip', state); popup({ rating: 'skip', points: e.points, tags: ['lo pasaste'] }); break;
           case 'guestArrive': say(6, 'guestAsk', state); break;
           case 'guestSignal': teach('guest'); break;
           case 'truckEnter': teach('truck'); break;

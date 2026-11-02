@@ -80,7 +80,8 @@ function pourTick(s, h, tilt, aim, events) {
     if (flow > 0) return gameOver(s, 'gracias', events, t.seat);
     t.stillTime += h;
     if (t.stillTime >= T.SKIP_DELAY - EPS) {
-      events.push({ type: 'skip', seat: t.seat });
+      s.points += T.PTS_SKIP;   // remembering who said gracias is worth a little, and keeps the streak
+      events.push({ type: 'skip', seat: t.seat, points: T.PTS_SKIP });
       startTurn(s, nextSeat(s), events);
     }
     return;

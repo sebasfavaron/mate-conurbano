@@ -68,6 +68,7 @@ test('trap turn skips after 1.2 s of no water', () => {
   const s = trapTurn(); const served = s.served; let at = null; const ev = [];
   for (let t = .01; t < 3; t += .01) { const e = step(s, .01, 0).events; ev.push(...e); if (!at && e.some(x => x.type === 'skip')) { at = t; assert.equal(find(e, 'turn').seat, 4); } }
   near(at, 1.2); assert.equal(s.served, served); assert.ok(!types(ev).includes('tease'));
+  assert.equal(find(ev, 'skip').points, 50); assert.equal(s.points, 50);
 });
 test('holding the trigger into a trap turn is safe', () => {
   const s = trapTurn(.8); assert.equal(s.turn.armed, false);

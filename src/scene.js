@@ -364,9 +364,12 @@ function drawPeople(state, t) {
       handR = figure(at.x, at.y, at.yaw, { lean: .3, stance: .1, armR, armL: .1, scale: look.scale }, look, dynamicAdd);
     } else handR = seatedFigure(at.x, at.y, at.yaw, pose, look, dynamicAdd).handR;
     if (!isHolder) continue;
-    const u = ease(clamp(p / T.PASS_TIME, 0, 1));
-    if (state.phase === 'out') drawGourd(lerp3(TABLE_EDGE_0, handR, u));
-    else if (state.phase === 'back') drawGourd(lerp3(handR, TABLE_EDGE_0, u));
+    // the pass: in the first half of 'out' your hand lifts the gourd (drawn in the rig), in the second half it
+    // crosses the table in an arc to the friend's hand; 'back' mirrors it
+    const u = clamp(p / T.PASS_TIME, 0, 1);
+    const arc = (a, b, k) => { const q = lerp3(a, b, ease(k)); q[2] += Math.sin(Math.PI * k) * .35; return q; };
+    if (state.phase === 'out') { if (u >= .5) drawGourd(arc(TABLE_EDGE_0, handR, (u - .5) / .5)); }
+    else if (state.phase === 'back') { if (u < .5) drawGourd(arc(handR, TABLE_EDGE_0, u / .5)); }
     else drawGourd(handR);
   }
   if (!state.seats[6]) { const back = guestPlace(state); if (back) drawWalkingDriver(back, t); }
@@ -611,8 +614,17 @@ function drawStream(from, to, flow) {
   for (let k = 0; k < 3; k++) px(to[0] - 2 + k * 2, to[1] - 1, C.shine); // splash
 }
 
-// Canvas point just above the gourd, where the hand-off popup appears.
-export function rigAnchor() { return { sx: RIG.mouth.x, sy: RIG.mouth.y - 26 }; }
+// How far your gourd hand is lifted towards the table (0..1), and whether it still holds the mate.
+const REACH = [-20, -46];
+function rigReach(state) {
+  const u = clamp(state.phaseTime / T.PASS_TIME, 0, 1);
+  if (state.phase === 'out') return u < .5 ? { k: ease(u / .5), holding: true } : { k: 1 - ease((u - .5) / .5), holding: false };
+  if (state.phase === 'back') return u < .5 ? { k: ease(u / .5), holding: false } : { k: 1 - ease((u - .5) / .5), holding: true };
+  return { k: 0, holding: false };
+}
+
+// Canvas point beside the gourd, where the hand-off popup appears (clear of the hand lifting it away).
+export function rigAnchor() { return { sx: RIG.mouth.x + 58, sy: RIG.mouth.y + 2 }; }
 
 export function drawRig(state, t) {
   const dt = clamp(t - rigFx.t, 0, .1);
@@ -624,9 +636,16 @@ export function drawRig(state, t) {
   if (state.tutorial && state.phase === 'drink') fill *= 1 - clamp(state.phaseTime / T.DRINK_TIME, 0, 1);
   const angle = lerp(0, 105 * Math.PI / 180, inHand ? rigFx.tilt : 0);
 
-  // your right hand under the gourd (or empty and cupped while the mate goes round)
-  arm(RIG.body.x + 22, H + 8, RIG.body.x + 5, RIG.body.y + RIG.body.ry + 1, 8, 5, .62);
-  if (inHand) {
+  // your right hand under the gourd (or empty and cupped while the mate goes round). Passing it, the hand
+  // lifts towards the table and lets go halfway through 'out'; it reaches up again to take it back.
+  const { k: lift, holding } = rigReach(state);
+  const home = { mx: RIG.mouth.x, my: RIG.mouth.y, bx: RIG.body.x, by: RIG.body.y };
+  RIG.mouth.x += REACH[0] * lift; RIG.mouth.y += REACH[1] * lift; RIG.body.x += REACH[0] * lift; RIG.body.y += REACH[1] * lift;
+  arm(home.bx + 22, H + 8, RIG.body.x + 5, RIG.body.y + RIG.body.ry + 1, 8, 5, .62);
+  if (holding && !inHand) {
+    drawRigGourd(state.phase === 'out' ? fill : 0, state.yerba, state.wetTop, 0, false, 0, 0);
+    gourdHand(true);
+  } else if (inHand) {
     const dry = state.tutorial && state.phase === 'pour' ? 1 - clamp(fill / T.FILL_OK, 0, 1) : 0;
     if (rigFx.turn !== state.turn) { rigFx.turn = state.turn; rigFx.scar = []; }
     if (state.phase === 'pour' && state.flow > 0 && state.topFrac > .25) {
@@ -639,6 +658,8 @@ export function drawRig(state, t) {
     gourdHand(true);
     if (fill > .15) drawSteam(t, fill);
   } else gourdHand(false);
+  Object.assign(RIG.mouth, { x: home.mx, y: home.my });
+  Object.assign(RIG.body, { x: home.bx, y: home.by });
 
   // your left hand on the thermos
   if (T.TILT_GUIDE && state.phase === 'pour' && inHand) drawTiltGuide(rigFx.tilt);

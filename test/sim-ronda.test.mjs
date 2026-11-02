@@ -31,7 +31,7 @@ test('phase timings', () => {
   const s = afterTutorial();
   until(s, st => (st.turn.fill < .9 ? .5 : 0), (st, ev) => ev.some(e => e.type === 'handoff'));
   const at = []; let t = 0;
-  for (const mark of [.59, .61, 3.59, 3.61, 4.19, 4.21]) { while (t < mark - 1e-9) { step(s, .01, 0); t += .01; } at.push(s.phase); }
+  for (const mark of [.79, .81, 3.79, 3.81, 4.59, 4.61]) { while (t < mark - 1e-9) { step(s, .01, 0); t += .01; } at.push(s.phase); }
   assert.deepEqual(at, ['out', 'drink', 'drink', 'back', 'back', 'pour']);
 });
 test('one tease per turn at 90 %, then grab', () => {

@@ -105,7 +105,8 @@ All values live in `src/tuning.js`; numbers below are starting points.
   100, +50 brim-full (≥ 97 %) or +25 near it (≥ 92 %), up to +50 for keeping the mound dry, +30 for beating the
   tease; −40 for a spill. Clean, unspilled, ungrabbed mates build a streak (×1.1 per mate, up to ×2). A grab of a
   full mate halves it; a grab under `FILL_OK` scores 0. The truck guest doubles it.
-- A popup over the gourd names the result (*¡Perfecto!*, *¡Muy bien!*, *Bien*, *Zafa*, or red *¡Te lo sacaron!*)
+- A correct skip of someone who said gracias earns `PTS_SKIP = 50` and keeps the streak.
+- A popup beside the gourd names the result (*¡Perfecto!*, *¡Muy bien!*, *Bien*, *Zafa*, or red *¡Te lo sacaron!*)
   and the bonuses. The corner shows points and mates; the record is by points.
 
 ### 2.6 Gracias (the bomb)
