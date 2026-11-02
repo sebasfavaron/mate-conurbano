@@ -63,6 +63,7 @@ try {
   };
   const fresh = `const m = window.__mate; m.reset(1); `;
   await rig('04-rig-gentle', fresh + `for (let i = 0; i < 50; i++) m.step(.02, .35);`);
+  await rig('04b-rig-sweet', fresh + `for (let i = 0; i < 50; i++) m.step(.02, .48);`);
   await rig('05-rig-hard', fresh + `for (let i = 0; i < 30; i++) m.step(.02, 1);`);
   await rig('06-rig-washed', fresh + `m.state.yerba = .2; for (let i = 0; i < 160; i++) m.step(.02, .45); m.step(.02, 0);`);
   await rig('07-rig-overflow', fresh + `m.state.turn.fill = .97; for (let i = 0; i < 25; i++) m.step(.02, .6);`);

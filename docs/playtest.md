@@ -11,6 +11,9 @@ Run `npm run serve` and play a few full runs with each input you have. Tick what
 - [ ] The raised palm of a *gracias* reads without its bubble (it is the only cue while the truck passes).
 - [ ] Friends read as seated people with distinct looks.
 
+- [ ] The sweet-spot arc around the thermos helps a first-time player. Decide later whether it stays on all run,
+      fades after N mates, or goes (`TILT_GUIDE` in `src/tuning.js`).
+
 ## Sound (`lab.html` first, then in game)
 
 - [ ] The pour sounds like mate being poured, not like noise.

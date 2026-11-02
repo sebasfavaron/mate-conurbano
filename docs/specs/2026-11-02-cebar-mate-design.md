@@ -203,6 +203,9 @@ A small corner lot floating on white:
 
 - The most recently active source wins.
 - The thermos' drawn angle follows `tilt` with light smoothing (no lag a player would feel).
+- **Sweet-spot arc** *(playtest 2026-11-02, beginner aid, `TILT_GUIDE`)*: a dotted arc around the thermos hand
+  shows every reachable tilt: grey no water, pale green too slow, green the sweet spot (good flow, all in the
+  hole), amber starting to hit the mound, red washing it. A tick marks the current tilt.
 - **Shift tip** appears once per run in the status line, "Tip: con Shift apretado inclinás más despacio",
   the first time a single pour washes away more than 8 % yerba, or at mate 8, whichever comes first. It
   is **not** in the tutorial or rules dialog.

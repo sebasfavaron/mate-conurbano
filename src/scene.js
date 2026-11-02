@@ -1,6 +1,6 @@
 // Bake and draw the patio through the engine's globals (engine.js is a classic script loaded first).
 import { T } from './tuning.js';
-import { patienceWindow } from './sim.js';
+import { patienceWindow, pourAt } from './sim.js';
 
 /* ---------- layout (world units, table at the origin) ---------- */
 const ISLAND_X = 10, ISLAND_Y = 6.8, ISLAND_FAR = 9.4;
@@ -638,6 +638,7 @@ export function drawRig(state, t) {
   } else gourdHand(false);
 
   // your left hand on the thermos
+  if (T.TILT_GUIDE && state.phase === 'pour' && inHand) drawTiltGuide(rigFx.tilt);
   const wrist = [RIG.pivot.x - Math.cos(angle) * (RIG.thermo.half + 3), RIG.pivot.y - Math.sin(angle) * (RIG.thermo.half + 3) + 2];
   arm(RIG.pivot.x - 34, H + 8, wrist[0], wrist[1], 8, 4.5, .6);
   const spout = drawThermos(angle, pulse);
@@ -653,6 +654,29 @@ export function drawRig(state, t) {
     }
   }
   drawFlecks(t);
+}
+
+// The sweet-spot arc: every tilt the thermos can reach, coloured by what it does to the mate.
+const GUIDE = { off: rgb(196, 190, 180), slow: rgb(170, 204, 150), sweet: rgb(76, 156, 72), warn: rgb(222, 158, 56), wash: rgb(202, 76, 56) };
+const MAX_ANGLE = 105 * Math.PI / 180, GUIDE_R = 27;
+const tiltForLand = land => T.TILT_FLOW_MIN + land * (1 - T.TILT_FLOW_MIN);
+function guideZone(tilt) {
+  if (tilt <= T.TILT_FLOW_MIN) return 'off';
+  const { topFrac, land } = pourAt(tilt);
+  if (topFrac === 0) return land >= T.GUIDE_LAND_FROM ? 'sweet' : 'slow';
+  return topFrac < T.GUIDE_WASH_TOP ? 'warn' : 'wash';
+}
+function drawTiltGuide(tilt) {
+  const { x: ox, y: oy } = RIG.pivot, now = guideZone(tilt);
+  for (let k = 0; k <= 90; k++) {
+    const u = k / 90, a = u * MAX_ANGLE, zone = guideZone(u);
+    if ((zone === 'off' || zone === 'slow') && k % 3) continue;   // too little water: dotted
+    const band = zone === now && zone !== 'off' ? 3 : zone === 'off' || zone === 'slow' ? 1 : 2; // your zone is thickest
+    for (let r = 0; r < band; r++) px(ox + Math.sin(a) * (GUIDE_R + r), oy - Math.cos(a) * (GUIDE_R + r), GUIDE[zone]);
+  }
+  // the needle tip: a short tick at the current tilt
+  const a = tilt * MAX_ANGLE;
+  for (let r = GUIDE_R - 3; r <= GUIDE_R + 4; r++) px(ox + Math.sin(a) * r, oy - Math.cos(a) * r, C.ink);
 }
 
 function drawFlecks(t) {

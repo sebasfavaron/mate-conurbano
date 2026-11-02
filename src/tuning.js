@@ -24,4 +24,5 @@ export const T = Object.freeze({
   DRIVER_VOICE: Object.freeze({ hz: 95, rate: .6, wordPause: .12 }),
   // ui
   BUBBLE_TIME: 2.2, RESTART_GUARD: .8,
+  TILT_GUIDE: true, GUIDE_LAND_FROM: .3, GUIDE_WASH_TOP: .3, // the sweet-spot arc around the thermos
 });
