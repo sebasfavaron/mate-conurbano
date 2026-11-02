@@ -179,50 +179,8 @@ export function createAudio({ tracks = TRACKS, truckUrl = 'audio/camion.mp3', st
       });
     },
 
-    // a street dog a few houses away: "woof". A rounded "w" (low formants gliding up), a deep voiced "oo"
-    // (a comb filter on breath noise, pitch falling), a soft breathy "f" at the tail; muffled by distance.
     bark(pan = .3, at = 0) {
-      if (!ctx) return;
-      const t = ctx.currentTime + at, v = .92 + Math.random() * .16, end = t + .24;
-      const out = ctx.createGain(), far = ctx.createBiquadFilter(), p = ctx.createStereoPanner();
-      far.type = 'lowpass'; far.frequency.value = 1700;
-      p.pan.value = Math.max(-1, Math.min(1, pan));
-      out.gain.value = 1.6;
-      out.connect(far).connect(p).connect(master);
-      const echo = ctx.createDelay(); echo.delayTime.value = .09;
-      const echoGain = ctx.createGain(); echoGain.gain.value = .15;
-      out.connect(echo).connect(echoGain).connect(far);
-      // voiced "oo": breath noise through a comb tuned to the pitch, rounded onset, falling pitch
-      const n = ctx.createBufferSource(), env = ctx.createGain();
-      n.buffer = noise;
-      env.gain.setValueAtTime(0, t);
-      env.gain.linearRampToValueAtTime(.45, t + .025);
-      env.gain.setValueAtTime(.45, t + .09);
-      env.gain.linearRampToValueAtTime(0, t + .2);
-      const sum = ctx.createGain(), comb = ctx.createDelay(.02), fb = ctx.createGain();
-      fb.gain.value = .74;
-      comb.delayTime.setValueAtTime(1 / (170 * v), t);
-      comb.delayTime.linearRampToValueAtTime(1 / (205 * v), t + .05);
-      comb.delayTime.linearRampToValueAtTime(1 / (140 * v), t + .2);
-      n.connect(env).connect(sum);
-      sum.connect(comb).connect(fb).connect(sum);
-      // mouth: "w" starts with low formants that open into "oo", then close
-      const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(), f2g = ctx.createGain();
-      f1.type = 'bandpass'; f1.Q.value = 3; f2.type = 'bandpass'; f2.Q.value = 4; f2g.gain.value = .45;
-      f1.frequency.setValueAtTime(240 * v, t); f1.frequency.linearRampToValueAtTime(430 * v, t + .05); f1.frequency.linearRampToValueAtTime(320 * v, t + .2);
-      f2.frequency.setValueAtTime(560 * v, t); f2.frequency.linearRampToValueAtTime(980 * v, t + .05); f2.frequency.linearRampToValueAtTime(720 * v, t + .2);
-      sum.connect(f1).connect(out);
-      sum.connect(f2).connect(f2g).connect(out);
-      // the "f": a soft puff of air as the mouth closes
-      const puff = ctx.createBufferSource(), hp = ctx.createBiquadFilter(), pg = ctx.createGain();
-      puff.buffer = noise; hp.type = 'bandpass'; hp.frequency.value = 1300; hp.Q.value = .8;
-      pg.gain.setValueAtTime(0, t + .15);
-      pg.gain.linearRampToValueAtTime(.05, t + .18);
-      pg.gain.linearRampToValueAtTime(0, end);
-      puff.connect(hp).connect(pg).connect(p);
-      n.start(t, Math.random()); n.stop(end + .05);
-      puff.start(t, Math.random()); puff.stop(end + .05);
-      setTimeout(() => { fb.gain.value = 0; }, (at + .5) * 1000); // let the comb loop die out
+      if (ctx) barkInto(ctx, master, noise, ctx.currentTime + at, pan);
     },
 
     // a benteveo somewhere in the paraíso: "bien-te-veo", three quick whistles
@@ -335,7 +293,57 @@ export function createAudio({ tracks = TRACKS, truckUrl = 'audio/camion.mp3', st
   return api;
 }
 
-function makeNoise(ctx, secs) {
+// A street dog a few houses away: "woof". A rounded "w" (low formants gliding up), a deep voiced "oo"
+// (a comb filter on breath noise, pitch falling), a soft breathy "f" at the tail; muffled by distance.
+// Every gain starts at 0 before its envelope: an AudioParam sits at its default (1) until its first event.
+export function barkInto(ctx, dest, noise, t, pan = 0) {
+  const v = .92 + Math.random() * .16, end = t + .24;
+  const out = ctx.createGain(), far = ctx.createBiquadFilter(), p = ctx.createStereoPanner();
+  far.type = 'lowpass'; far.frequency.value = 1700;
+  p.pan.value = Math.max(-1, Math.min(1, pan));
+  out.gain.value = BARK_GAIN;
+  out.connect(far).connect(p).connect(dest);
+  const echo = ctx.createDelay(); echo.delayTime.value = .09;
+  const echoGain = ctx.createGain(); echoGain.gain.value = .15;
+  out.connect(echo).connect(echoGain).connect(far);
+  // voiced "oo": breath noise through a comb tuned to the pitch, rounded onset, falling pitch
+  const n = ctx.createBufferSource(), env = ctx.createGain();
+  n.buffer = noise;
+  env.gain.value = 0;
+  env.gain.setValueAtTime(0, t);
+  env.gain.linearRampToValueAtTime(.45, t + .025);
+  env.gain.setValueAtTime(.45, t + .09);
+  env.gain.linearRampToValueAtTime(0, t + .2);
+  const sum = ctx.createGain(), comb = ctx.createDelay(.02), fb = ctx.createGain();
+  fb.gain.value = .74;
+  fb.gain.setValueAtTime(.74, t + .25);
+  fb.gain.linearRampToValueAtTime(0, t + .4);   // let the comb loop die out
+  comb.delayTime.setValueAtTime(1 / (170 * v), t);
+  comb.delayTime.linearRampToValueAtTime(1 / (205 * v), t + .05);
+  comb.delayTime.linearRampToValueAtTime(1 / (140 * v), t + .2);
+  n.connect(env).connect(sum);
+  sum.connect(comb).connect(fb).connect(sum);
+  // mouth: "w" starts with low formants that open into "oo", then close
+  const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(), f2g = ctx.createGain();
+  f1.type = 'bandpass'; f1.Q.value = 3; f2.type = 'bandpass'; f2.Q.value = 4; f2g.gain.value = .45;
+  f1.frequency.setValueAtTime(240 * v, t); f1.frequency.linearRampToValueAtTime(430 * v, t + .05); f1.frequency.linearRampToValueAtTime(320 * v, t + .2);
+  f2.frequency.setValueAtTime(560 * v, t); f2.frequency.linearRampToValueAtTime(980 * v, t + .05); f2.frequency.linearRampToValueAtTime(720 * v, t + .2);
+  sum.connect(f1).connect(out);
+  sum.connect(f2).connect(f2g).connect(out);
+  // the "f": a soft puff of air as the mouth closes
+  const puff = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), pg = ctx.createGain();
+  puff.buffer = noise; bp.type = 'bandpass'; bp.frequency.value = 1300; bp.Q.value = .8;
+  pg.gain.value = 0;
+  pg.gain.setValueAtTime(0, t + .15);
+  pg.gain.linearRampToValueAtTime(.05, t + .18);
+  pg.gain.linearRampToValueAtTime(0, end);
+  puff.connect(bp).connect(pg).connect(p);
+  n.start(t, Math.random()); n.stop(end + .05);
+  puff.start(t + .14, Math.random()); puff.stop(end + .05);
+}
+const BARK_GAIN = 2.2;
+
+export function makeNoise(ctx, secs) {
   const buf = ctx.createBuffer(1, ctx.sampleRate * secs, ctx.sampleRate), d = buf.getChannelData(0);
   for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
   return buf;
