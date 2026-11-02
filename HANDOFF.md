@@ -8,7 +8,7 @@ reference material. The game code starts at Task 1 of the plan.
 
 ```
 cebar-mate-handoff/
-├─ mate-conurbano/                 ← this git repo (2 commits, branch main)
+├─ mate-conurbano/                 ← this git repo (branch main, design docs only)
 │  ├─ HANDOFF.md                   ← this file
 │  ├─ docs/specs/2026-11-02-cebar-mate-design.md   approved design (source of truth)
 │  ├─ docs/plans/2026-11-02-cebar-mate.md          15-task TDD implementation plan
