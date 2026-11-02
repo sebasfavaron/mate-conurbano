@@ -35,6 +35,15 @@
     color: var(--muted); text-align: right; pointer-events: none; opacity: 0; transition: opacity 2.5s ease; max-width: 60vw; }
   #nowplaying.on { opacity: 1; }
   #nowplaying b { color: var(--ink); font-weight: 600; }
+  #lesson { position: fixed; inset: 0; display: grid; place-items: center; background: rgba(255, 255, 255, .35); cursor: pointer; }
+  #lesson[hidden] { display: none; }
+  #lesson div { background: var(--paper); border: 1px solid var(--ink); padding: 14px 20px; max-width: min(380px, calc(100vw - 32px));
+    text-align: center; line-height: 1.5; animation: lessonIn .35s ease-out; }
+  #lesson b { font-size: 16px; }
+  #lesson p { margin: 6px 0 10px; }
+  #lesson small { color: var(--muted); }
+  @keyframes lessonIn { from { opacity: 0; transform: translateY(6px); } }
+  @media (prefers-reduced-motion: reduce) { #lesson div { animation: none; } }
   #paused { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; font-size: 15px; }
   #paused[hidden] { display: none; }
   #paused span { background: var(--paper); padding: 6px 14px; border: 1px solid var(--ink); }
@@ -60,6 +69,7 @@
   dialog ol { padding-left: 20px; margin: 0 0 12px; line-height: 1.5; }
   dialog li { margin: 0 0 6px; }
   dialog button { margin: 0; padding: 4px 10px; border: 1px solid var(--ink); color: var(--ink); }
+  dialog button.quiet { border-color: transparent; color: var(--muted); margin-left: 8px; }
 </style>
 </head>
 <body>
@@ -69,6 +79,7 @@
 <div id="bubbles" aria-hidden="true"></div>
 <div id="end" hidden><div></div></div>
 <div id="nowplaying" aria-live="off"></div>
+<div id="lesson" hidden></div>
 <div id="paused" hidden><span>en pausa · P para seguir</span></div>
 <div class="hud" id="bottom">
   <div id="status" role="status" aria-live="polite"></div>
@@ -76,7 +87,7 @@
 </div>
 <dialog id="rules">
   <ol></ol>
-  <form method="dialog"><button>listo</button></form>
+  <form method="dialog"><button>listo</button> <button type="button" id="relearn" class="quiet">ver las explicaciones de nuevo</button></form>
 </dialog>
 <script>window.PP_SCENE = { originY: -10, shadowX: 1.1, shadowY: -.2 };</script>
 <script src="engine.js"></script>

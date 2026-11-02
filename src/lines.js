@@ -32,6 +32,22 @@ export const LINES = {
   },
 };
 
+// First-time lessons: a card in the middle of the screen, once per device, the first time each thing happens.
+export const LESSONS = {
+  start: ['El primer mate es tuyo', 'Sirve para mojar la yerba. Mantené espacio, arrastrá hacia abajo o apretá el gatillo para inclinar el termo.'],
+  gauge: ['El arco del termo', 'Verde es el punto justo: el agua cae al costado, en el agujero. Amarillo y rojo pegan en la montañita y lavan la yerba.'],
+  foam: ['¡Espuma!', 'El mate está lleno. Soltá y se lo pasás.'],
+  ronda: ['Ahora, la ronda', 'El que espera se inclina hacia vos. Si tardás mucho, te lo saca, y medio vacío no cuenta.'],
+  points: ['Puntos', 'Suma más al ras, sin lavar la yerba y antes de que se queje. Los mates limpios seguidos multiplican.'],
+  tease: ['Se impacienta', 'Cuando alguien se queja, está por sacártelo. Terminá ya.'],
+  grab: ['Te lo sacaron', 'Si no estaba lleno, no cuenta. Tres mates secos seguidos y la ronda se va.'],
+  wash: ['Lavaste la yerba', 'El chorro pegó en la montañita: el agua se enturbia y la yerba dura menos. Inclinalo un poco menos.'],
+  spill: ['Se rebalsó', 'Resta puntos y lava la yerba. Soltá cuando aparece la espuma.'],
+  gracias: ['Dijo gracias', 'Ya no quiere más. Cuando le toque, no inclines el termo y el mate pasa solo. Si le cebás, perdiste.'],
+  truck: ['El camión de los muebles', 'Mientras pasa no se escucha nada. Si alguien dice gracias, solo vas a ver la mano levantada.'],
+  guest: ['¡Frena el camionero!', 'Quiere un mate. El suyo vale doble.'],
+};
+
 export const RULES = [
   'Mantené para inclinar el termo y soltá cuando el mate esté lleno.',
   'Despacio cae al costado; si mojás la montañita, la yerba se lava. Si se lava toda, se termina.',

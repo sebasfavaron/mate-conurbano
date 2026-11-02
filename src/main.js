@@ -14,6 +14,7 @@ const input = bindInput(canvas);
 const audio = createAudio({ truckUrl: 'audio/camion.mp3', store, onTrack: (track, phase) => ui.nowPlaying(track, phase) });
 let state = createRun({ seed: Date.now() >>> 0 });
 let started = false, paused = false, overFor = 0, last = performance.now();
+let lessonFor = 0, swallow = false, lessonClicked = false;
 const ambience = createAmbience();
 let ambientEvents = [];
 
@@ -58,6 +59,21 @@ document.addEventListener('visibilitychange', () => { if (document.hidden) setPa
 document.getElementById('rules').addEventListener('close', () => setPaused(false));
 document.getElementById('rules-open').addEventListener('click', () => setPaused(true));
 
+// a lesson card holds the game; any fresh press (after a short guard) or a click dismisses it,
+// and the press that dismissed it never pours: input is ignored until everything is let go
+document.getElementById('lesson').addEventListener('pointerdown', e => { e.preventDefault(); lessonClicked = true; });
+function lessonFrame(dt, edge) {
+  lessonFor += dt;
+  if (!((edge || lessonClicked) && lessonFor > .5)) return true;
+  const was = ui.lesson;
+  ui.hideLesson();
+  lessonClicked = false;
+  input.reset();
+  swallow = true;
+  if (was === 'start' && !started) { started = true; audio.start(); }
+  return false;
+}
+
 const mate = window.__mate = {
   get state() { return state; },
   drawn: 0,
@@ -78,12 +94,22 @@ function frame(now) {
   last = now;
   const tilt = input.read(dt);
   const edge = input.raw.pressedEdge;
-  if (paused) { drawScene(state, now / 1000, ambience); requestAnimationFrame(frame); return; }
-  if (!started && edge) {
+  if (paused) { drawScene(state, now / 1000, ambience); mate.drawn++; requestAnimationFrame(frame); return; }
+  if (!ui.lesson && ui.lessonPending && state.phase !== 'over') { ui.showLesson(); lessonFor = 0; lessonClicked = false; input.reset(); }
+  if (ui.lesson && lessonFrame(dt, edge)) {
+    audio.update({ ...state, flow: 0 }, dt);
+    drawScene(state, now / 1000, ambience);
+    mate.drawn++;
+    requestAnimationFrame(frame);
+    return;
+  }
+  if (swallow) { if (input.idle) { swallow = false; input.reset(); } }
+  const tiltIn = swallow ? 0 : tilt;
+  if (!started && edge && !swallow) {
     started = true;
     audio.start();
   }
-  if (started && state.phase !== 'over') dispatch(step(state, dt, tilt).events);
+  if (started && state.phase !== 'over') dispatch(step(state, dt, tiltIn).events);
   else if (state.phase === 'over') {
     overFor += dt;
     if (canRestart(overFor, edge)) restart();

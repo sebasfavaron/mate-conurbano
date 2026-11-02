@@ -262,6 +262,11 @@ duck levels and fades, a "play truck" button and a "play line" box, for tuning w
 4. On the first *gracias* of the run (only in a player's first run, tracked in `localStorage`):
    "Dijo gracias: ya no le cebes más. Dejá pasar el mate".
 
+**Lesson cards** *(playtest 2026-11-02)*: the first time each thing happens on a device (first pour, the arc,
+foam, the ronda, points, a tease, a grab, washing, a spill, a gracias, the truck, the guest), a card in the middle
+explains it and holds the game. Any fresh press or a click dismisses it; that press never pours. Seen cards are
+stored under `cebar-mate:learned`; the rules dialog can reset them.
+
 **Rules dialog** (`?` top-right), four items:
 1. Mantené para inclinar el termo y soltá cuando el mate esté lleno.
 2. Despacio cae al costado; si mojás la montañita, la yerba se lava. Si se lava toda, se termina.

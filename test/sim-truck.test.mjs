@@ -64,7 +64,7 @@ test('guest mate counts 2 and he leaves', () => {
   assert.ok(log.slice(i).some(e => e.type === 'truckLeave'));
   assert.equal(s.seats[6], null); assert.equal(s.guest.done, true);
 });
-test('guest patience is 8 s', () => {
+test('guest patience is 8.2 s', () => {
   const seed = guestRun(); const s = createRun({ seed, skipTutorial: true });
   let start = null;
   while (s.phase !== 'over' && s.rondaTime < 600) {
@@ -73,7 +73,7 @@ test('guest patience is 8 s', () => {
     const ev = step(s, .01, guestTurn ? 0 : bot(s)).events;
     if (ev.some(e => e.type === 'turn' && e.seat === 6)) start = s.time;
     const h = ev.find(e => e.type === 'handoff' && e.seat === 6);
-    if (h) { assert.equal(h.grabbed, true); near(s.time - start, 8, .02); return; }
+    if (h) { assert.equal(h.grabbed, true); near(s.time - start, 8.2, .02); return; }
   }
   assert.fail('guest never had a turn');
 });

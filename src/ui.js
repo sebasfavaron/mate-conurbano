@@ -1,6 +1,6 @@
 // DOM text: speech bubbles, status line, tutorial, rules, score corner and the end screen (spec §5).
 import { T } from './tuning.js';
-import { LINES, RULES, pickLine } from './lines.js';
+import { LINES, RULES, LESSONS, pickLine } from './lines.js';
 import { makeRng } from './rng.js';
 
 const CW = 360, CH = 280;
@@ -73,6 +73,14 @@ export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestar
     setStatus(line);
   }
 
+  // lessons: the first time each thing happens on this device, a card in the middle explains it
+  const lessonEl = $('lesson'), learned = store.get('learned', {}), lessons = [];
+  let lessonOn = null;
+  function teach(id) {
+    if (learned[id] || lessons.includes(id) || lessonOn === id) return;
+    lessons.push(id);
+  }
+
   // the hand-off popup, floating up from the gourd
   function popup(handoff) {
     const { title, detail, kind } = popupText(handoff);
@@ -91,6 +99,11 @@ export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestar
   const rules = $('rules');
   rules.querySelector('ol').innerHTML = RULES.map(r => `<li>${r}</li>`).join('');
   $('rules-open').addEventListener('click', () => { rules.showModal?.(); });
+  $('relearn').addEventListener('click', () => {
+    for (const k of Object.keys(learned)) delete learned[k];
+    store.set('learned', {});
+    $('relearn').textContent = 'listo: vuelven a aparecer';
+  });
 
   // mute
   const mute = $('mute');
@@ -102,7 +115,21 @@ export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestar
   // now-playing card: fades in slowly with each song and out a few seconds before it ends
   const np = $('nowplaying');
   return {
-    intro() { setStatus(LINES.tutorial.start); },
+    intro() { setStatus(LINES.tutorial.start); teach('start'); },
+
+    teach,
+    get lessonPending() { return lessons.length > 0; },
+    get lesson() { return lessonOn; },
+    showLesson() {
+      lessonOn = lessons.shift();
+      learned[lessonOn] = true;
+      store.set('learned', learned);
+      const [title, body] = LESSONS[lessonOn];
+      lessonEl.innerHTML = `<div><b>${title}</b><p>${body}</p><small>tocá, hacé clic o apretá espacio para seguir</small></div>`;
+      lessonEl.hidden = false;
+      return lessonOn;
+    },
+    hideLesson() { lessonEl.hidden = true; lessonOn = null; },
 
     nowPlaying(track, phase) {
       if (phase === 'ending') { np.classList.remove('on'); return; }
@@ -117,28 +144,32 @@ export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestar
       for (const e of events) {
         switch (e.type) {
           case 'pourStart':
+            teach('gauge');
             if (state.tutorial && !tutorialPourShown) { tutorialPourShown = true; setStatus(LINES.tutorial.pouring); }
             break;
-          case 'tutorialDone': setStatus(LINES.tutorial.first); break;
+          case 'tutorialDone': setStatus(LINES.tutorial.first); teach('ronda'); break;
           case 'turn': teased = false; break;
-          case 'tease': if (!teased) { teased = true; say(e.seat, 'impatient', state); } break;
-          case 'spill': say(e.seat, 'spill', state); break;
+          case 'tease': if (!teased) { teased = true; say(e.seat, 'impatient', state); } teach('tease'); break;
+          case 'spill': say(e.seat, 'spill', state); teach('spill'); break;
           case 'lavado': say(e.seat, 'lavado', state); break;
           case 'arrive': say(e.seat, 'arrive', state); break;
           case 'handoff':
-            if (!state.tutorial && e.seat !== 0) popup(e);
+            if (!state.tutorial && e.seat !== 0) { popup(e); teach(e.grabbed ? 'grab' : 'points'); }
             // an empty grab always gets its own line; a half-full one only if nobody teased this turn
             if (e.grabbed && state.turn.fill < .02) say(e.seat, 'grabEmpty', state);
             else if (e.grabbed && !e.good && !teased) say(e.seat, 'grab', state);
             break;
           case 'skip': say(e.seat, 'skip', state); break;
           case 'guestArrive': say(6, 'guestAsk', state); break;
+          case 'guestSignal': teach('guest'); break;
+          case 'truckEnter': teach('truck'); break;
           case 'gracias':
             if (e.seat === 6) { say(6, 'guestThanks', state); break; }
             if (!e.palmOnly) say(e.seat, 'gracias', state);
+            teach('gracias');
             if (!store.get('seenGracias', false)) { store.set('seenGracias', true); setStatus(LINES.tutorial.gracias); }
             break;
-          case 'tip': setStatus(e.name === 'shift' ? LINES.tutorial.shiftTip : LINES.tutorial[e.name]); break;
+          case 'tip': setStatus(e.name === 'shift' ? LINES.tutorial.shiftTip : LINES.tutorial[e.name]); if (e.name === 'aim') teach('wash'); break;
           case 'gameOver': {
             if (e.reason === 'gracias') say(e.seat, 'bomb', state);
             const best = Math.max(store.get('bestPoints', 0), e.points);
@@ -166,6 +197,7 @@ export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestar
 
     frame(state, dt) {
       clock += dt;
+      if (state.phase === 'pour' && state.turn.fill >= T.FILL_OK && !state.turn.trap) teach('foam');
       const rect = canvas.getBoundingClientRect();
       bubbles = bubbles.filter(b => {
         if (clock > b.until || !state.seats[b.seat]) { b.el.remove(); return false; }

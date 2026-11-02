@@ -36,21 +36,21 @@ test('phase timings', () => {
 });
 test('one tease per turn at 90 %, then grab', () => {
   const s = afterTutorial();
-  near(firstAt(s, 'tease'), 5.4);
+  near(firstAt(s, 'tease'), 5.58);
   const ev = until(s, 0, (st, e) => e.some(x => x.type === 'handoff')), h = find(ev, 'handoff');
   assert.ok(!types(ev).includes('tease'));
   assert.deepEqual([h.grabbed, h.good, h.value], [true, false, 0]);
-  near(s.turn.waited, 6.0);
+  near(s.turn.waited, 6.2);
 });
 test('grab happens exactly at the patience window', () => {
   const s = afterTutorial(); const start = s.time;
   until(s, 0, (st, ev) => ev.some(e => e.type === 'handoff'));
-  near(s.time - start, 6.0);
+  near(s.time - start, 6.2);
 });
-test('patience shrinks to 4 s by mate 30', () => {
+test('patience shrinks to 4.2 s by mate 30', () => {
   const s = afterTutorial(); s.served = 30; const start = s.time;
   until(s, 0, (st, ev) => ev.some(e => e.type === 'handoff'));
-  near(s.time - start, 4.0);
+  near(s.time - start, 4.2);
 });
 test('grab with a full mate still counts', () => {
   const s = afterTutorial();

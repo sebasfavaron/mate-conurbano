@@ -73,5 +73,8 @@ export function bindInput(target) {
       return updateTilt(model, dt, raw);
     },
     releaseAll,
+    // drop everything held and straighten the thermos at once (after a pause or a lesson card)
+    reset() { releaseAll(); model.tilt = 0; },
+    get idle() { return !raw.space && raw.pointer == null && !(raw.gamepad > 0); },
   };
 }

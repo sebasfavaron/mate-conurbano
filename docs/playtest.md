@@ -44,5 +44,6 @@ Run `npm run serve` and play a few full runs with each input you have. Tick what
 |---|---|---|---|
 | `TEASE_AT` | `[.5, .83]` | `[.9]` | 50 % could not be beaten; one tease per turn, a bit more patience |
 | `SECO_FILL`, `SECO_LIMIT` | — | `.4`, `3` | idling with dry mates outlasted good play |
+| `PATIENCE_START`, `PATIENCE_END`, `GUEST_PATIENCE` | 6, 4, 8 | 6.2, 4.2, 8.2 | a touch more patience |
 | `KEY_DOWN` | 2.5 | 1.25 | the spring-back was too fast to hold a tilt without Shift |
 | `RES_F_EMPTY` | 260 | 170 | pour sounded too thin; mate is denser (stream band and slurp lowered in `audio.js` too) |
