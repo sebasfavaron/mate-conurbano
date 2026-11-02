@@ -31,9 +31,10 @@ Node ≥ 22. Any static file server works; the site deploys as plain static file
 ```bash
 npm test             # node --test, the pure sim, input, audio curves and UI helpers
 npm run smoke        # Playwright screenshots into screenshots/ (manual, see below)
+npm run meta         # re-renders the link-preview image and icons in meta/ from the game
 ```
 
-The smoke script needs Playwright, which is not a dependency:
+Both scripts need Playwright, which is not a dependency:
 
 ```bash
 npm i --no-save playwright && npx playwright install chromium

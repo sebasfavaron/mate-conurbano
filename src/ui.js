@@ -44,6 +44,9 @@ export function endHint(over, stats) {
   return 'el chorro lavó la montañita: inclinalo menos, que caiga al costado';
 }
 
+// Where shared scores point, also from a local copy of the game.
+export const GAME_URL = 'https://sebasfavaron.github.io/mate-conurbano/';
+
 // The line people paste into a chat after a run.
 export function shareText(over) {
   const how = { gracias: 'le cebé al que dijo gracias', seco: 'se cansaron de los mates secos', gastada: 'la yerba dio todo' }[over.reason] || 'se lavó la yerba';
@@ -197,10 +200,9 @@ export function createUi({ store, audio, canvas, headScreen, sideHead, rigAnchor
             share.type = 'button'; share.className = 'quiet'; share.textContent = 'compartir';
             share.addEventListener('click', async () => {
               const text = shareText(e);
-              const url = /^https?:/.test(location.href) && !/127\.0\.0\.1|localhost/.test(location.host) ? location.href.split('#')[0] : undefined;
               try {
-                if (navigator.share) await navigator.share({ text, url });
-                else { await navigator.clipboard.writeText(url ? `${text}\n${url}` : text); share.textContent = '¡copiado!'; }
+                if (navigator.share) await navigator.share({ text, url: GAME_URL });
+                else { await navigator.clipboard.writeText(`${text}\n${GAME_URL}`); share.textContent = '¡copiado!'; }
               } catch { /* closed the share sheet */ }
             });
             end.firstElementChild.append(' ', share);

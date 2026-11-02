@@ -1,0 +1,14 @@
+{
+  "name": "Cebar Mate",
+  "short_name": "Cebar Mate",
+  "description": "Cebale a la ronda en un patio del conurbano. Sin lavar la yerba.",
+  "lang": "es-AR",
+  "start_url": "./",
+  "display": "fullscreen",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    { "src": "meta/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "meta/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
