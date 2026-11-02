@@ -88,6 +88,15 @@ try {
   });
 
 
+  await shot('11-end', () => {
+    const m = window.__mate; m.reset(4, { skipTutorial: true });
+    m.state.score = 14; m.state.rondaTime = 9 * 60 + 5; m.state.yerba = .001; m.state.truck.nextAt = 1e9;
+    m.step(.05, 0); for (let i = 0; i < 20; i++) m.step(.02, 1);
+  });
+  if (!only || '11-end'.startsWith(only)) {
+    await page.screenshot({ path: 'screenshots/11-end-page.png' });
+    shots.push('screenshots/11-end-page.png');
+  }
 } finally {
   await browser?.close();
   server.kill();
