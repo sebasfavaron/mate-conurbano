@@ -11,6 +11,8 @@ All player-facing text is in Argentine Spanish. Plain JavaScript, no build step,
 
 ## Play
 
+**https://sebasfavaron.github.io/mate-conurbano/** (GitHub Pages, from `main`). Or locally:
+
 ```bash
 npm run serve        # http://127.0.0.1:5300/
 ```
