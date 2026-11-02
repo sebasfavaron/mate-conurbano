@@ -451,7 +451,7 @@ const RIG = {
 };
 const C = {
   ink: rgb(36, 30, 30), steel: rampOf([170, 176, 184]), cap: rampOf([196, 52, 44]), gourd: rampOf([124, 98, 54]),
-  rim: rampOf([200, 196, 184]), skin: rampOf([226, 176, 138]), sleeve: rampOf([62, 74, 96]), cuff: rampOf([84, 96, 118]),
+  rim: rampOf([200, 196, 184]), skin: rampOf([226, 176, 138]),
   thermos: rampOf([66, 112, 78]), cup: rampOf([58, 58, 62]),
   yerba: [98, 142, 58], yerbaWet: [52, 86, 40], yerbaPale: [176, 178, 128], hole: rgb(40, 36, 28),
   water: rgb(132, 186, 222), waterDeep: rgb(92, 150, 196), shine: rgb(236, 248, 255), stream: rgb(156, 206, 238),
@@ -485,47 +485,67 @@ function shape(x0, y0, x1, y1, inside, ramp) {
   return mask;
 }
 
-// A forearm from the bottom edge: tapered, a sleeve with a ribbed cuff, then skin to the wrist.
-function arm(fromX, fromY, toX, toY, w0, w1, sleeveTo) {
-  const len = Math.hypot(toX - fromX, toY - fromY), dx = (toX - fromX) / len, dy = (toY - fromY) / len;
-  const pad = Math.max(w0, w1) + 1;
-  shape(Math.min(fromX, toX) - pad, Math.min(fromY, toY) - pad, Math.max(fromX, toX) + pad, Math.min(H - 1, Math.max(fromY, toY) + pad), (x, y) => {
-    const a = (x - fromX) * dx + (y - fromY) * dy, b = (x - fromX) * -dy + (y - fromY) * dx;
-    const u = a / len, w = lerp(w0, w1, u);
-    if (a < 0 || a > len || Math.abs(b) > w) return null;
-    const side = b / w; // -1 lit edge, +1 shaded edge
-    if (u < sleeveTo - .1) return C.sleeve[clamp(Math.round(2.7 - side * 1.3 + (hash(x | 0, y | 0) > .9 ? -.5 : 0)), 1, 4)];
-    if (u < sleeveTo) return C.cuff[(Math.round(a) % 2 ? 2 : 3) - (side > .5 ? 1 : 0)];
+// Your arms: bendy tubes of even width curving up from the bottom edge, elbow out, in the celeste and white
+// short sleeves of the Selección.
+const JERSEY = [rampOf([116, 178, 226]), rampOf([236, 236, 230])];
+function arm(fromX, fromY, toX, toY, w, sleeveTo) {
+  const len = Math.hypot(toX - fromX, toY - fromY), bend = toX > fromX ? -10 : 10;
+  const cx = (fromX + toX) / 2 - (toY - fromY) / len * bend, cy = (fromY + toY) / 2 + (toX - fromX) / len * bend;
+  const pts = [];
+  for (let i = 0; i <= 32; i++) {
+    const t = i / 32, m = 1 - t;
+    pts.push([m * m * fromX + 2 * m * t * cx + t * t * toX, m * m * fromY + 2 * m * t * cy + t * t * toY]);
+  }
+  const pad = w + 1;
+  shape(Math.min(fromX, toX, cx) - pad, Math.min(fromY, toY, cy) - pad, Math.max(fromX, toX, cx) + pad, Math.min(H - 1, Math.max(fromY, toY, cy) + pad), (x, y) => {
+    let best = 1e9, k = 0;
+    for (let i = 0; i < pts.length; i++) { const d = (x - pts[i][0]) ** 2 + (y - pts[i][1]) ** 2; if (d < best) { best = d; k = i; } }
+    if (best > w * w) return null;
+    const [ax, ay] = pts[Math.max(0, k - 1)], [bx, by] = pts[Math.min(32, k + 1)], tl = Math.hypot(bx - ax, by - ay);
+    const side = ((x - pts[k][0]) * -(by - ay) + (y - pts[k][1]) * (bx - ax)) / tl / w * Math.sign(bend);
+    if (k / 32 < sleeveTo) return JERSEY[Math.floor((side + 1) * 2.5) % 2][clamp(Math.round(3 - side), 2, 4)];
     return C.skin[clamp(Math.round(2.9 - side * 1.2), 1, 4)];
   });
 }
 
-// Cartoon mitten hands: a few rounded lobes with one ink outline each and flat two-tone shading.
-function lobe(cx, cy, rx, ry, rot = 0, tone = 0) {
-  const c = Math.cos(rot), sn = Math.sin(rot), r = Math.max(rx, ry) + 1;
-  return shape(cx - r, cy - r, cx + r, cy + r, (x, y) => {
-    const dx = x - cx, dy = y - cy, u = (dx * c + dy * sn) / rx, v = (-dx * sn + dy * c) / ry;
-    if (u * u + v * v > 1) return null;
-    if (u * -.6 + v * -.8 > .55) return C.skin[4];          // highlight on the upper-left
-    return C.skin[(u * .5 + v * .85 > .35 ? 2 : 3) + tone];  // shade on the lower-right
+// A hand built from capsules [x0, y0, x1, y1, r0, r1] in screen space, later ones on top: one ink outline round
+// the silhouette and soft creases where one piece lies over another.
+const LIGHT = [-.6, -.8];
+function capsuleAt(x, y, [x0, y0, x1, y1, r0, r1]) {
+  const dx = x1 - x0, dy = y1 - y0, t = clamp(((x - x0) * dx + (y - y0) * dy) / (dx * dx + dy * dy || 1), 0, 1);
+  const ox = x - x0 - dx * t, oy = y - y0 - dy * t, d = Math.hypot(ox, oy), r = lerp(r0, r1, t);
+  return d > r ? null : [(ox * LIGHT[0] + oy * LIGHT[1]) / r, r - d];
+}
+function hand(parts) {
+  const tone = l => C.skin[l > .45 ? 4 : l > -.3 ? 3 : 2];
+  const box = parts.reduce((b, [x0, y0, x1, y1, r0, r1]) => {
+    const r = Math.max(r0, r1) + 1;
+    return [Math.min(b[0], x0 - r, x1 - r), Math.min(b[1], y0 - r, y1 - r), Math.max(b[2], x0 + r, x1 + r), Math.max(b[3], y0 + r, y1 + r)];
+  }, [1e9, 1e9, -1e9, -1e9]).map(Math.floor);
+  shape(...box, (x, y) => {
+    for (let i = parts.length - 1; i >= 0; i--) {
+      const h = capsuleAt(x, y, parts[i]);
+      if (!h) continue;
+      if (h[1] < .9 && parts.some((q, j) => j < i && capsuleAt(x, y, q))) return C.skin[1];
+      return tone(h[0]);
+    }
+    return null;
   });
 }
 
-// Your left hand around the thermos: a mitten wrapped across the body, a thumb pointing to the spout.
-function thermosHand(local, toScreen, half) {
-  const angle = Math.atan2(toScreen(1, 0)[0] - toScreen(0, 0)[0], -(toScreen(1, 0)[1] - toScreen(0, 0)[1]));
-  const rot = angle; // the mitten's long side runs across the thermos
-  const c = toScreen(-1.4, -.6);
-  lobe(c[0], c[1], half + 2.4, 6, rot);
-  // finger notches on the far edge
-  for (const a of [-3.2, -.6, 2]) {
-    for (let k = 0; k < 2; k++) {
-      const p = toScreen(a, half + 1.6 - k);
-      px(p[0], p[1], C.ink);
-    }
-  }
-  const th = toScreen(4.4, -half - .4);
-  lobe(th[0], th[1], 2.2, 4, rot);
+// Your left hand round the thermos, in its turning frame: the heel of the hand on the near side, four fingers
+// wrapped across the body and the thumb up its edge towards the spout.
+function thermosHand(toScreen, half) {
+  const cap = (a0, b0, a1, b1, r0, r1 = r0) => [...toScreen(a0, b0), ...toScreen(a1, b1), r0, r1];
+  hand([cap(-7.5, -half - 1.6, 1, -half - 1, 3.2, 3),
+    ...[2.2, -1.4, -5, -8.3].map((a, k) => cap(a, -half, a - .4, k === 3 ? half + .2 : half + 1.2, k === 3 ? 1.6 : 2)),
+    cap(.5, -half - 1.6, 6, -half + .8, 2.1, 1.7)]);
+}
+
+// Your right hand is a round stump the gourd sits on.
+function stump() {
+  const { body: g } = RIG, y = g.y + g.ry - 1;
+  hand([[g.x - 1, y, g.x + 3, y, 5.5, 5.5]]);
 }
 
 // An Argentine thermos: hammered green body, steel bands, a dark cup for a cap and the steel pouring spout.
@@ -548,23 +568,8 @@ function drawThermos(angle, glow) {
     return shadeOf(C.thermos, cyl + hammer, ix, iy);
   });
   if (glow) outlineGlow(mask);
-  thermosHand(local, toScreen, half);
+  thermosHand(toScreen, half);
   return toScreen(front, 0);
-}
-
-// Your right hand under the gourd: a cupped mitten with the fingers up one side and the thumb up the other.
-function gourdHand(full) {
-  const { body: g } = RIG;
-  if (!full) {
-    lobe(g.x + 2, g.y + g.ry - 3, 11, 5);
-    lobe(g.x - 6, g.y + g.ry - 7, 4, 3.4, -.5);
-    return;
-  }
-  // fingers and thumb first, so the palm overlaps their roots and they read as one hand
-  lobe(g.x - g.rx + 5, g.y + 9, 3.6, 6.4, .55);
-  lobe(g.x + g.rx - 4, g.y + 11, 2.6, 4.4, -.6);
-  lobe(g.x, g.y + g.ry - 1, 13, 5);
-  for (let k = 0; k < 2; k++) px(g.x - g.rx + 6 + k * 2, g.y + 6 + k * 3, C.ink);  // finger notches
 }
 
 function outlineGlow(mask) {
@@ -699,15 +704,15 @@ export function drawRig(state, t) {
   if (state.tutorial && state.phase === 'drink') fill *= 1 - clamp(state.phaseTime / T.DRINK_TIME, 0, 1);
   const angle = lerp(0, 105 * Math.PI / 180, inHand ? rigFx.tilt : 0);
 
-  // your right hand under the gourd (or empty and cupped while the mate goes round). Passing it, the hand
-  // lifts towards the table and lets go halfway through 'out'; it reaches up again to take it back.
+  // your right arm, the gourd sitting on its stump. Passing the mate, the arm lifts towards the table and
+  // lets go halfway through 'out'; it reaches up again to take it back.
   const { k: lift, holding } = rigReach(state);
   const home = { mx: RIG.mouth.x, my: RIG.mouth.y, bx: RIG.body.x, by: RIG.body.y };
   RIG.mouth.x += REACH[0] * lift; RIG.mouth.y += REACH[1] * lift; RIG.body.x += REACH[0] * lift; RIG.body.y += REACH[1] * lift;
-  arm(home.bx + 22, H + 8, RIG.body.x + 5, RIG.body.y + RIG.body.ry + 1, 8, 5, .62);
+  arm(home.bx + 22, H + 8, RIG.body.x + 1, RIG.body.y + RIG.body.ry - 1, 4.7, .3);
+  stump();
   if (holding && !inHand) {
     drawRigGourd(state.phase === 'out' ? fill : 0, state.yerba, state.wetTop, 0, false, 0, 0);
-    gourdHand(true);
   } else if (inHand) {
     const dry = state.tutorial && state.phase === 'pour' ? 1 - clamp(fill / T.FILL_OK, 0, 1) : 0;
     if (rigFx.turn !== state.turn) { rigFx.turn = state.turn; rigFx.scar = []; }
@@ -718,16 +723,15 @@ export function drawRig(state, t) {
     }
     const murk = clamp((state.turn.washed || 0) / .035, 0, 1);
     drawRigGourd(fill, state.yerba, state.wetTop, state.phase === 'pour' ? state.turn.overflow : 0, pulse, dry, murk);
-    gourdHand(true);
     if (fill > .15) drawSteam(t, fill);
-  } else gourdHand(false);
+  }
   Object.assign(RIG.mouth, { x: home.mx, y: home.my });
   Object.assign(RIG.body, { x: home.bx, y: home.by });
 
   // your left hand on the thermos
   if (T.TILT_GUIDE && state.phase === 'pour' && inHand) drawTiltGuide(rigFx.tilt);
   const wrist = [RIG.pivot.x - Math.cos(angle) * (RIG.thermo.half + 3), RIG.pivot.y - Math.sin(angle) * (RIG.thermo.half + 3) + 2];
-  arm(RIG.pivot.x - 34, H + 8, wrist[0], wrist[1], 8, 4.5, .6);
+  arm(RIG.pivot.x - 34, H + 8, wrist[0], wrist[1], 4.45, .3);
   const spout = drawThermos(angle, pulse);
   if (state.flow > 0 && state.phase !== 'over') {
     const land = landingPoint(state.land, state.yerba);
