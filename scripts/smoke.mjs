@@ -68,6 +68,25 @@ try {
   await rig('07-rig-overflow', fresh + `m.state.turn.fill = .97; for (let i = 0; i < 25; i++) m.step(.02, .6);`);
   await page.evaluate(() => window.__mate.reset(1));
 
+  // truck pass, the guest at the fence, and dusk
+  await shot('08-truck', () => {
+    const m = window.__mate; m.reset(2, { skipTutorial: true });
+    Object.assign(m.state.truck, { active: true, progress: .5, speed: 1 / 30.3, nextAt: 1e9 });
+    m.state.rondaTime = 100; m.step(.02, 0);
+  });
+  await shot('09-guest', () => {
+    const m = window.__mate; m.reset(2, { skipTutorial: true });
+    Object.assign(m.state.truck, { active: true, progress: .5, speed: 0, stopped: true, guestPass: true, signalled: true, nextAt: 1e9 });
+    m.state.seats[6] = { look: 5, guest: true, saidGracias: false };
+    m.feed([{ type: 'truckStop' }, { type: 'guestArrive' }]);
+    for (let i = 0; i < 100; i++) m.step(.02, 0);
+  });
+  await shot('10-dusk', () => {
+    const m = window.__mate; m.reset(3, { skipTutorial: true });
+    m.state.rondaTime = 720; m.state.truck.nextAt = 1e9;
+    for (let i = 0; i < 40; i++) m.step(.02, .4);
+  });
+
 
 } finally {
   await browser?.close();

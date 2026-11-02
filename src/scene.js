@@ -275,8 +275,11 @@ const WALK_TIME = 2, PALM_TIME = 1.2;
 const fx = { palm: [], tease: [], arrive: [], offended: -1 };
 export function resetScene() {
   fx.palm = []; fx.tease = []; fx.arrive = []; fx.offended = -1;
+  truckFx.signalAt = truckFx.stopAt = truckFx.leaveAt = -99;
+  dust.length = 0;
 }
 export function sceneEvents(events, state) {
+  truckEvents(events, state);
   for (const e of events) {
     if (e.type === 'gracias') fx.palm[e.seat] = state.time;
     else if (e.type === 'tease') fx.tease[e.seat] = state.time;
@@ -312,7 +315,8 @@ function drawPeople(state, t) {
   for (let i = 1; i <= 6; i++) {
     const occupant = state.seats[i];
     if (!occupant) continue;
-    const look = LOOKS[occupant.look] || LOOKS[0], at = personAt(i, state);
+    const look = LOOKS[occupant.look] || LOOKS[0], at = i === 6 ? guestPlace(state) : personAt(i, state);
+    if (i === 6 && at.walking) { drawWalkingDriver(at, t); continue; }
     if (at.walking) {
       const stride = STILL ? 0 : Math.sin(t * 9) * .35;
       figure(at.x, at.y, at.yaw, { stance: .15 + stride * .2, armR: stride, armL: -stride, scale: look.scale }, look, dynamicAdd);
@@ -327,15 +331,18 @@ function drawPeople(state, t) {
     else if (isHolder && state.phase === 'back') pose.reach = .6 + ease(clamp(p / T.PASS_TIME, 0, 1)) * .4;
     else if (i === holder && state.phase === 'pour' && fx.tease[i] != null) Object.assign(pose, { lean: .28, reach: .8 });
     else pose.lean = STILL ? 0 : Math.sin(t * 1.6 + i) * .015;
-    if (i === 6) Object.assign(pose, { standing: true, lean: (pose.lean || 0) + .3 });
-    const { handR } = seatedFigure(at.x, at.y, at.yaw, pose, look, dynamicAdd);
+    let handR;
+    if (i === 6) {
+      const armR = pose.drinking ? 2.1 : pose.palm ? 2.9 : pose.reach ? .4 + pose.reach : .1;
+      handR = figure(at.x, at.y, at.yaw, { lean: .3, stance: .1, armR, armL: .1, scale: look.scale }, look, dynamicAdd);
+    } else handR = seatedFigure(at.x, at.y, at.yaw, pose, look, dynamicAdd).handR;
     if (!isHolder) continue;
     const u = ease(clamp(p / T.PASS_TIME, 0, 1));
     if (state.phase === 'out') drawGourd(lerp3(TABLE_EDGE_0, handR, u));
     else if (state.phase === 'back') drawGourd(lerp3(handR, TABLE_EDGE_0, u));
     else drawGourd(handR);
   }
-  // the cebador's own first mate: drunk off-screen in the rig, nothing to draw here
+  if (!state.seats[6]) { const back = guestPlace(state); if (back) drawWalkingDriver(back, t); }
 }
 const lerp3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 
@@ -536,24 +543,150 @@ export function drawRig(state, t) {
   if (state.flow > 0 && state.phase !== 'over') drawStream(spout, landingPoint(state.land, state.yerba), state.flow);
 }
 
+/* ---------- the furniture truck, the guest and dusk ---------- */
+const ROAD_MID = -6.5, TRUCK_FROM = -15, TRUCK_TO = 15;
+const CAB = [70, 112, 72], RUST = rgb(150, 92, 52), PLANK = [[132, 104, 76], [116, 92, 70], [146, 118, 88]];
+const TYRE = [40, 38, 40], MATTRESS = [232, 226, 210], HORN = [176, 180, 176];
+const GUEST_WALK = 1.5;
+const dust = [];
+const truckFx = { signalAt: -99, stopAt: -99, leaveAt: -99, lastT: 0 };
+
+export function truckX(progress) { return lerp(TRUCK_FROM, TRUCK_TO, progress); }
+
+function rustDots(x0, x1, y0, y1, z) {
+  for (let x = x0; x < x1; x += .09) for (let y = y0; y < y1; y += .09) {
+    if (hash(x * 31, y * 17 + z) > .93) plot(x, y, z + .01, RUST);
+  }
+}
+
+function drawTruck(state, t) {
+  const tr = state.truck;
+  const leaving = state.time - truckFx.leaveAt < GUEST_WALK;
+  if (!tr.active) return;
+  const x = truckX(tr.progress), y = ROAD_MID;
+  // wheels, with a two-frame stipple while rolling
+  const roll = STILL || tr.speed === 0 ? 0 : Math.floor(t * 10) % 2;
+  for (const a of [-1.7, 1.75]) for (const b of [-.78, .78]) {
+    sphere(x + a, y + b, .34, .34, TYRE, 'solid');
+    plot(x + a + (roll ? .12 : -.12), y + b + .36, .34 + (roll ? .1 : -.1), rgb(150, 146, 140));
+  }
+  // chassis and bed floor
+  obox(x - .9, y, .45, 1.6, .74, .1, 0, [52, 50, 52], 3);
+  // slatted wooden side boards and tailgate
+  for (let row = 0; row < 4; row++) {
+    const z = .7 + row * .24, tone = PLANK[row % 3];
+    obox(x - 1.05, y + .74, z, 1.45, .035, .1, 0, tone, row * 5);
+    obox(x - 1.05, y - .74, z, 1.45, .035, .1, 0, tone, row * 5 + 1);
+    obox(x - 2.48, y, z, .035, .72, .1, 0, tone, row * 5 + 2);
+  }
+  for (const a of [-2.45, -1.5, -.6, .35]) for (const b of [-.74, .74]) obox(x + a, y + b, .6, .05, .05, .55, 0, [70, 82, 92], a * 9);
+  // a mattress standing in the back
+  obox(x - 1.2, y - .1, .7, .9, .22, .62, -.05, MATTRESS, 11, .4);
+  // cab: lower body, hood, roof on pillars, so the driver shows through the window
+  obox(x + 1.1, y, .55, .55, .72, .32, 0, CAB, 21);
+  obox(x + 2.05, y, .55, .45, .7, .3, 0, CAB, 22);
+  obox(x + 1.1, y, 1.72, .55, .74, .05, 0, CAB, 23);
+  for (const a of [.6, 1.6]) for (const b of [-.7, .7]) obox(x + a, y + b, 1.18, .04, .04, .28, 0, CAB, 24);
+  obox(x + 1.62, y, 1.2, .02, .7, .25, 0, [60, 72, 84], 25, -.6);     // windscreen
+  obox(x + 2.52, y, .6, .02, .55, .16, 0, [228, 226, 218], 26, .4);   // white grille
+  sphere(x + 2.53, y + .52, .78, .08, [240, 236, 214], 'gloss');
+  sphere(x + 2.53, y - .52, .78, .08, [240, 236, 214], 'gloss');
+  rustDots(x + 1.6, x + 2.5, y - .7, y + .7, 1.15);
+  rustDots(x + .55, x + 1.65, y - .74, y + .74, 1.82);
+  // loudspeaker horn on the roof
+  capsule([x + .9, y, 1.82], [x + .9, y, 2.0], .05, .05, () => HORN, 'solid');
+  capsule([x + .85, y, 2.08], [x + 1.25, y, 2.12], .1, .2, () => HORN, 'solid');
+  sphere(x + 1.27, y, 2.12, .12, [60, 60, 64], 'solid');
+  pendingShadows.push([x - .9, y, .9], 1.1, [x + 2, y, .9], 1.1);
+  // the driver, unless he is out at the fence
+  const out = state.seats[6] || leaving || (tr.stopped && state.time - truckFx.stopAt >= 0);
+  if (!out) {
+    const wave = state.time - truckFx.signalAt < T.GUEST_SLOW_TIME;
+    seatedFigure(x + 1.05, y + .2, 0, { palm: wave, z: .1 }, LOOKS[5], dynamicAdd);
+  }
+  // dust trail
+  if (!STILL && tr.speed > 0) {
+    const dt = clamp(t - truckFx.lastT, 0, .1);
+    for (let k = 0; k < dt * 40; k++) dust.push({ x: x - 2.6 + (Math.random() - .5) * .5, y: y + (Math.random() - .5) * 1.4, z: .1, born: t });
+  }
+}
+
+function drawDust(t) {
+  for (let i = dust.length - 1; i >= 0; i--) {
+    const d = dust[i], age = t - d.born;
+    if (age > 1.5 || age < 0) { dust.splice(i, 1); continue; }
+    const z = d.z + age * .5, fade = age / 1.5;
+    for (let k = 0; k < 4; k++) {
+      if (hash(i * 7 + k, Math.floor(age * 8)) < fade) continue;
+      plot(d.x - age * .4 + (k % 2) * .1, d.y + (k > 1 ? .1 : 0), z, rgb(190 - k * 8, 168 - k * 8, 132 - k * 6));
+    }
+  }
+}
+
+// Where the driver stands: walking from the cab to the gate after the stop, and back after his mate.
+function guestPlace(state) {
+  const cab = [truckX(T.GUEST_STOP_AT) + 1.1, ROAD_MID + .9];
+  const there = [GUEST_SPOT[0], GUEST_SPOT[1] - .2];
+  if (state.seats[6]) {
+    const u = ease(clamp((state.time - truckFx.stopAt) / GUEST_WALK, 0, 1));
+    return { x: lerp(cab[0], there[0], u), y: lerp(cab[1], there[1], u), walking: u < 1, yaw: u < 1 ? Math.atan2(there[1] - cab[1], there[0] - cab[0]) : Math.PI / 2 };
+  }
+  const u = ease(clamp((state.time - truckFx.leaveAt) / GUEST_WALK, 0, 1));
+  if (u >= 1) return null;
+  return { x: lerp(there[0], cab[0], u), y: lerp(there[1], cab[1], u), walking: true, yaw: Math.atan2(cab[1] - there[1], cab[0] - there[0]) };
+}
+
+function drawWalkingDriver(at, t) {
+  const stride = STILL ? 0 : Math.sin(t * 8) * .35;
+  return figure(at.x, at.y, at.yaw, { stance: .15 + stride * .2, armR: stride, armL: -stride, scale: 1.15 }, LOOKS[5], dynamicAdd);
+}
+
+export function truckEvents(events, state) {
+  for (const e of events) {
+    if (e.type === 'guestSignal') truckFx.signalAt = state.time;
+    else if (e.type === 'truckStop') truckFx.stopAt = state.time;
+    else if (e.type === 'guestLeave') truckFx.leaveAt = state.time;
+  }
+}
+
+const VIOLET = [70, 52, 120], ORANGE = [255, 150, 70];
+export function gradeDusk(dusk) {
+  const k = .35 * clamp(dusk, 0, 1);
+  if (k <= 0) return;
+  for (let i = 0; i < pix.length; i++) {
+    const c = pix[i];
+    if (c === 0xffffffff) continue; // the paper stays white
+    const r = c & 255, g = c >> 8 & 255, b = c >> 16 & 255;
+    const L = (.3 * r + .59 * g + .11 * b) / 255;
+    const w = clamp((L - .25) / .45, 0, 1), tw = w * w * (3 - 2 * w);
+    const tr = lerp(VIOLET[0], ORANGE[0], tw), tg = lerp(VIOLET[1], ORANGE[1], tw), tb = lerp(VIOLET[2], ORANGE[2], tw);
+    const scale = L * 255 / Math.max(1, .3 * tr + .59 * tg + .11 * tb);
+    pix[i] = rgb(lerp(r, tr * scale, k), lerp(g, tg * scale, k), lerp(b, tb * scale, k));
+  }
+}
+
 /* ---------- per frame ---------- */
 export function drawScene(state, t) {
   pix.set(bakedPix);
   zb.set(bakedZ);
   pendingShadows.length = 0;
+  drawTruck(state, t);
   drawPeople(state, t);
+  drawDust(t);
+  truckFx.lastT = t;
   const windT = STILL ? 0 : Math.floor(t * WIND_FPS) / WIND_FPS;
   drawLeaves(windT);
   drawTufts(windT);
   flushShadows();
   applyShadows(bakedZ);
   shadeEdges();
+  gradeDusk(state.rondaTime / T.DUSK_TIME);
   drawRig(state, t);
   ctx.putImageData(image, 0, 0);
 }
 
 export function headScreen(index, state) {
-  const at = state ? personAt(index, state) : seatPosition(index);
+  const at = (index === 6 && state && guestPlace(state)) || (state ? personAt(index, state) : seatPosition(index));
   const top = index === 6 ? 2.6 : at.walking ? 2.1 : 1.85;
   const p = project(at.x, at.y, top);
   return { sx: p.sx, sy: p.sy };
