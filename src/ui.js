@@ -13,7 +13,7 @@ export function formatEnd(over, best) {
   return [
     `${over.score} ${over.score === 1 ? 'mate' : 'mates'}`,
     `la yerba aguantó ${over.minutes} min`,
-    over.reason === 'gracias' ? 'le cebaste al que dijo gracias' : 'se lavó',
+    { gracias: 'le cebaste al que dijo gracias', seco: 'se cansaron de los mates secos' }[over.reason] || 'se lavó',
     `récord: ${best}`,
     'otra ronda',
   ];
@@ -22,6 +22,7 @@ export function formatEnd(over, best) {
 // One line on the end screen that says what to do differently next run.
 export function endHint(over, stats) {
   if (over.reason === 'gracias') return 'acordate de quién dijo gracias';
+  if (over.reason === 'seco') return 'cebá aunque sea a medias: tres mates secos seguidos y se van';
   if (stats.washSpill > stats.washTop) return `se rebalsó ${stats.spills === 1 ? 'una vez' : `${stats.spills} veces`}: soltá cuando aparece la espuma`;
   return 'el chorro lavó la montañita: inclinalo menos, que caiga al costado';
 }
@@ -41,6 +42,7 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
   const showBest = () => { const b = store.get('best', 0); bestEl.textContent = b ? ` récord ${b}` : ''; };
 
   function say(seat, category, state, text) {
+    const warn = category === 'gracias';
     if (seat == null || seat === 0 || !state.seats[seat]) return;
     const line = text || pickLine(category, rng, lastLine[category]);
     lastLine[category] = line;
@@ -50,7 +52,7 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
     const times = audio.say(line, voice, { silent });
     bubbles = bubbles.filter(b => { if (b.seat === seat) { b.el.remove(); return false; } return true; });
     const el = document.createElement('div');
-    el.className = 'bubble';
+    el.className = warn ? 'bubble warn' : 'bubble';
     layer.append(el);
     const until = clock + Math.max(T.BUBBLE_TIME, (times.at(-1) || 0) + .9);
     bubbles.push({ seat, el, line, times, start: clock, until });
@@ -69,8 +71,19 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
   showMute();
   showBest();
 
+  // now-playing card: fades in slowly with each song and out a few seconds before it ends
+  const np = $('nowplaying');
   return {
     intro() { setStatus(LINES.tutorial.start); },
+
+    nowPlaying(track, phase) {
+      if (phase === 'ending') { np.classList.remove('on'); return; }
+      np.innerHTML = `♪ <b>${track.title}</b><br>${track.artist} · versión lofi`;
+      np.classList.remove('on');
+      requestAnimationFrame(() => requestAnimationFrame(() => np.classList.add('on')));
+    },
+
+    setStatus,
 
     handle(events, state) {
       for (const e of events) {

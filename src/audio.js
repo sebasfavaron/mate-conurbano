@@ -3,18 +3,20 @@
 import { T } from './tuning.js';
 import { makeRng } from './rng.js';
 import { resonanceHz, truckMix, musicLevel, babblePlan, charTimes } from './audio-math.js';
+import { TRACKS } from './tracks.js';
 
 const AUDIO_KEYS = ['MUSIC_GAIN', 'MUSIC_DUCK', 'DUCK_FADE_IN', 'DUCK_FADE_OUT', 'TRUCK_GAIN', 'RES_F_EMPTY', 'RES_MIN_AIR',
   'BLIP_MIN', 'BLIP_MAX', 'VOICE_JITTER', 'WORD_PAUSE'];
 const SMOOTH = .03;      // seconds; how fast pour layers follow the sim
 const CHIRP_RATE = 28;   // bubble chirps per second at full flow straight into water
+const SONG_OUTRO = 4;    // seconds before a song ends when its now-playing card starts to fade
 
-export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/camion.mp3', store } = {}) {
+export function createAudio({ tracks = TRACKS, truckUrl = 'audio/camion.mp3', store, onTrack } = {}) {
   const params = Object.fromEntries(AUDIO_KEYS.map(k => [k, T[k]]));
   const rng = makeRng(Date.now() >>> 0);
   let ctx = null, master, musicGain, music, truckBuffer = null, truck = null, ducked = false;
   let pour = null, noise = null, chirpAcc = 0;
-  let muted = !!store?.get('muted', false);
+  let muted = !!store?.get('muted', false), paused = false, song = -1, outro = false;
 
   const api = {
     params,
@@ -28,13 +30,17 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
       master.gain.value = muted ? 0 : 1;
       master.connect(ctx.destination);
 
-      music = new Audio(musicUrl);
-      music.loop = true;
+      // the music is a shuffled playlist: a random song, never the same twice in a row
+      music = new Audio();
       music.preload = 'auto';
       musicGain = ctx.createGain();
       musicGain.gain.value = params.MUSIC_GAIN;
       ctx.createMediaElementSource(music).connect(musicGain).connect(master);
-      music.play().catch(() => {});
+      music.addEventListener('ended', nextSong);
+      music.addEventListener('timeupdate', () => {
+        if (!outro && music.duration && music.duration - music.currentTime < SONG_OUTRO) { outro = true; onTrack?.(tracks[song], 'ending'); }
+      });
+      nextSong();
 
       noise = makeNoise(ctx, 2);
       pour = buildPour();
@@ -73,6 +79,7 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
       for (const e of events) {
         if (e.type === 'drinkEnd') api.slurp();
         else if (e.type === 'spill') api.splash();
+        else if (e.type === 'handoff' && e.grabbed) api.snatch();
         else if (e.type === 'guestSignal') api.honk();
         else if (e.type === 'truckEnter') startTruck(state);
         else if (e.type === 'truckLeave') stopTruck();
@@ -88,6 +95,43 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
         for (const b of plan) blip(t0 + b.t, b.hz, b.dur);
       }
       return charTimes(text, plan);
+    },
+
+    // Pause freezes everything audible, music included; resume picks up where it was.
+    pause() {
+      paused = true;
+      if (!ctx) return;
+      music.pause();
+      ctx.suspend();
+    },
+    resume() {
+      paused = false;
+      if (!ctx) return;
+      ctx.resume();
+      music.play().catch(() => {});
+    },
+
+    // The snatch: a quick swipe of the arm, then the gourd knocking against a hand.
+    snatch() {
+      if (!ctx) return;
+      const t = ctx.currentTime, src = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
+      src.buffer = noise; bp.type = 'bandpass'; bp.Q.value = 1.4;
+      bp.frequency.setValueAtTime(700, t);
+      bp.frequency.exponentialRampToValueAtTime(3200, t + .1);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(.32, t + .05);
+      g.gain.exponentialRampToValueAtTime(.001, t + .14);
+      src.connect(bp).connect(g).connect(master);
+      src.start(t, Math.random()); src.stop(t + .16);
+      const o = ctx.createOscillator(), og = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.setValueAtTime(240, t + .11);
+      o.frequency.exponentialRampToValueAtTime(140, t + .16);
+      og.gain.setValueAtTime(0, t + .11);
+      og.gain.linearRampToValueAtTime(.3, t + .115);
+      og.gain.exponentialRampToValueAtTime(.001, t + .18);
+      o.connect(og).connect(master);
+      o.start(t + .11); o.stop(t + .2);
     },
 
     setMuted(b) {
@@ -135,47 +179,43 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
       });
     },
 
-    // a street dog a few houses away: a rough, noisy "wuf" shaped by two mouth formants, slightly growled,
-    // then muffled by distance and given a short slap off the walls. Each bark varies a little.
+    // a street dog a few houses away. A comb filter on a noise burst gives a rough, pitched "wuf"
+    // (pitch falling as the bark ends), two jaw formants shape it, and distance muffles it with a wall slap.
     bark(pan = .3, at = 0) {
       if (!ctx) return;
-      const t = ctx.currentTime + at, v = .9 + Math.random() * .2;
-      const out = ctx.createGain(), p = ctx.createStereoPanner(), far = ctx.createBiquadFilter();
-      far.type = 'lowpass'; far.frequency.value = 2600;
+      const t = ctx.currentTime + at, v = .92 + Math.random() * .16;
+      const out = ctx.createGain(), far = ctx.createBiquadFilter(), p = ctx.createStereoPanner();
+      far.type = 'lowpass'; far.frequency.value = 2400;
       p.pan.value = Math.max(-1, Math.min(1, pan));
-      out.gain.value = .55;
+      out.gain.value = .9;
       out.connect(far).connect(p).connect(master);
-      const echo = ctx.createDelay(); echo.delayTime.value = .085;
-      const echoGain = ctx.createGain(); echoGain.gain.value = .22;
+      const echo = ctx.createDelay(); echo.delayTime.value = .09;
+      const echoGain = ctx.createGain(); echoGain.gain.value = .18;
       out.connect(echo).connect(echoGain).connect(far);
-      // voiced part: a low buzzy pulse that drops in pitch, through a soft clipper for the growl
-      const o = ctx.createOscillator(), shaper = ctx.createWaveShaper(), og = ctx.createGain();
-      o.type = 'sawtooth';
-      o.frequency.setValueAtTime(260 * v, t);
-      o.frequency.linearRampToValueAtTime(330 * v, t + .03);
-      o.frequency.exponentialRampToValueAtTime(170 * v, t + .16);
-      shaper.curve = SOFT_CLIP;
-      og.gain.setValueAtTime(0, t);
-      og.gain.linearRampToValueAtTime(.5, t + .015);
-      og.gain.setTargetAtTime(0, t + .05, .045);
-      // breath: noise burst that carries the bark's bite
-      const n = ctx.createBufferSource(), ng = ctx.createGain();
+      // excitation: a short breathy burst
+      const n = ctx.createBufferSource(), env = ctx.createGain();
       n.buffer = noise;
-      ng.gain.setValueAtTime(0, t);
-      ng.gain.linearRampToValueAtTime(.7, t + .008);
-      ng.gain.setTargetAtTime(0, t + .03, .04);
-      // two formants, opening then closing like a jaw
-      const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter();
-      f1.type = 'bandpass'; f1.Q.value = 3; f2.type = 'bandpass'; f2.Q.value = 4;
-      f1.frequency.setValueAtTime(500 * v, t); f1.frequency.linearRampToValueAtTime(750 * v, t + .04); f1.frequency.linearRampToValueAtTime(450 * v, t + .18);
-      f2.frequency.setValueAtTime(1300 * v, t); f2.frequency.linearRampToValueAtTime(1700 * v, t + .04); f2.frequency.linearRampToValueAtTime(1100 * v, t + .18);
-      o.connect(shaper).connect(og);
-      n.connect(ng);
-      for (const src of [og, ng]) { src.connect(f1); src.connect(f2); }
-      const f2g = ctx.createGain(); f2g.gain.value = .6;
-      f1.connect(out); f2.connect(f2g).connect(out);
-      o.start(t); o.stop(t + .3);
-      n.start(t, Math.random()); n.stop(t + .3);
+      env.gain.setValueAtTime(0, t);
+      env.gain.linearRampToValueAtTime(.5, t + .006);
+      env.gain.setValueAtTime(.5, t + .05);
+      env.gain.setTargetAtTime(0, t + .05, .03);
+      // comb: feeding the burst back through a delay of one pitch period makes it voiced
+      const sum = ctx.createGain(), comb = ctx.createDelay(.02), fb = ctx.createGain();
+      fb.gain.value = .62;
+      comb.delayTime.setValueAtTime(1 / (300 * v), t);
+      comb.delayTime.linearRampToValueAtTime(1 / (330 * v), t + .03);
+      comb.delayTime.linearRampToValueAtTime(1 / (215 * v), t + .14);
+      n.connect(env).connect(sum);
+      sum.connect(comb).connect(fb).connect(sum);
+      // jaw: formants open then close
+      const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter(), f2g = ctx.createGain();
+      f1.type = 'bandpass'; f1.Q.value = 2.2; f2.type = 'bandpass'; f2.Q.value = 3.5; f2g.gain.value = .5;
+      f1.frequency.setValueAtTime(480 * v, t); f1.frequency.linearRampToValueAtTime(700 * v, t + .035); f1.frequency.linearRampToValueAtTime(420 * v, t + .16);
+      f2.frequency.setValueAtTime(1250 * v, t); f2.frequency.linearRampToValueAtTime(1600 * v, t + .035); f2.frequency.linearRampToValueAtTime(1050 * v, t + .16);
+      sum.connect(f1).connect(out);
+      sum.connect(f2).connect(f2g).connect(out);
+      n.start(t, Math.random()); n.stop(t + .25);
+      setTimeout(() => { fb.gain.value = 0; }, (at + .4) * 1000); // let the loop die out
     },
 
     // a benteveo somewhere in the paraíso: "bien-te-veo", three quick whistles
@@ -199,6 +239,16 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
 
     duck,
   };
+
+  function nextSong() {
+    let next = Math.floor(Math.random() * tracks.length);
+    if (tracks.length > 1 && next === song) next = (next + 1 + Math.floor(Math.random() * (tracks.length - 1))) % tracks.length;
+    song = next;
+    outro = false;
+    music.src = tracks[song].file;
+    if (!paused) music.play().catch(() => {});
+    onTrack?.(tracks[song], 'start');
+  }
 
   function buildPour() {
     const src = ctx.createBufferSource();
@@ -277,12 +327,6 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
 
   return api;
 }
-
-const SOFT_CLIP = (() => {
-  const c = new Float32Array(256);
-  for (let i = 0; i < 256; i++) { const x = i / 128 - 1; c[i] = Math.tanh(x * 2.5); }
-  return c;
-})();
 
 function makeNoise(ctx, secs) {
   const buf = ctx.createBuffer(1, ctx.sampleRate * secs, ctx.sampleRate), d = buf.getChannelData(0);

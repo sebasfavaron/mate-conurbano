@@ -82,7 +82,7 @@ All values live in `src/tuning.js`; numbers below are starting points.
 ### 2.4 Patience
 - The clock starts when the gourd comes back into your hands.
 - `patience = lerp(PATIENCE_START = 6.0 s, PATIENCE_END = 4.0 s, clamp(matesServed / 30, 0, 1))`.
-- One tease line per turn, at **83 %** of the patience window (the waiting friend speaks). *(Playtest
+- One tease line per turn, at **90 %** of the patience window (the waiting friend speaks). *(Playtest
   2026-11-02: at 50 % the tease was unavoidable, since a clean pour takes ~4.4 s; two lines per turn felt like nagging.)*
 - The friend the mate is for leans in with a hand out, further as patience runs out (trap turns look the same).
 - A grab of an empty mate gets its own line (`grabEmpty`); a half-full grab gets a `grab` line if nobody teased that turn.
@@ -90,6 +90,10 @@ All values live in `src/tuning.js`; numbers below are starting points.
 - At **100 %** the friend grabs the mate as it is and drinks. If `fill < FILL_OK` the mate is **not
   counted**.
 - Spills still count as good mates if `fill ≥ FILL_OK` (the cost is the wash + the tease).
+
+- **Mates secos**: a grab with `fill < SECO_FILL = 0.4` is a dry mate. `SECO_LIMIT = 3` in a row ends the run
+  (*se cansaron de los mates secos*); a good mate resets the streak. *(Playtest 2026-11-02: never pouring made
+  the yerba last longer than pouring well.)*
 
 ### 2.5 Score
 - **Score = good mates**: hand-offs with `fill ≥ FILL_OK`. The truck guest's mate counts **2**.

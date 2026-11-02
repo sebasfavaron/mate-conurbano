@@ -34,9 +34,9 @@ test('phase timings', () => {
   for (const mark of [.59, .61, 3.59, 3.61, 4.19, 4.21]) { while (t < mark - 1e-9) { step(s, .01, 0); t += .01; } at.push(s.phase); }
   assert.deepEqual(at, ['out', 'drink', 'drink', 'back', 'back', 'pour']);
 });
-test('one tease per turn at 83 %, then grab', () => {
+test('one tease per turn at 90 %, then grab', () => {
   const s = afterTutorial();
-  near(firstAt(s, 'tease'), 4.98);
+  near(firstAt(s, 'tease'), 5.4);
   const ev = until(s, 0, (st, e) => e.some(x => x.type === 'handoff')), h = find(ev, 'handoff');
   assert.ok(!types(ev).includes('tease'));
   assert.deepEqual([h.grabbed, h.good, h.value], [true, false, 0]);
@@ -139,4 +139,16 @@ test('each contextual tip fires once per run', () => {
   for (let i = 0; i < 4; i++) names.push(...until(s, st => (st.phase === 'pour' && st.turn.fill < .4 ? 1 : 0), (st, e) => e.some(x => x.type === 'turn')).filter(e => e.type === 'tip').map(e => e.name));
   assert.equal(names.filter(n => n === 'aim').length, 1);
   assert.equal(names.filter(n => n === 'foam').length, 1);
+});
+test('three dry mates in a row end the ronda', () => {
+  const s = afterTutorial(); const ev = [];
+  for (let i = 0; i < 3 && s.phase !== 'over'; i++) ev.push(...until(s, 0, (st, e) => e.some(x => x.type === 'turn') || st.phase === 'over'));
+  assert.equal(find(ev, 'gameOver').reason, 'seco');
+  assert.ok(ev.some(e => e.type === 'tip' && e.name === 'seco'));
+});
+test('a good mate resets the dry streak', () => {
+  const s = afterTutorial();
+  for (let i = 0; i < 2; i++) until(s, 0, (st, e) => e.some(x => x.type === 'turn'));
+  assert.equal(s.secos, 2);
+  serve(s, .9, .55); assert.equal(s.secos, 0);
 });

@@ -272,7 +272,7 @@ export function seatedFigure(px, py, yaw, pose, look, addBone) {
 }
 
 /* ---------- gestures fed by sim events ---------- */
-const WALK_TIME = 2, PALM_TIME = 1.2;
+const WALK_SPEED = 2.2, WALK_RING = 3.4, PALM_TIME = 1.2;
 const fx = { palm: [], arrive: [], offended: -1 };
 export function resetScene() {
   fx.palm = []; fx.arrive = []; fx.offended = -1;
@@ -299,13 +299,34 @@ function drawGourd(p) {
   plot(p[0] + .06, p[1] - .03, p[2] + .22, BOMBILLA);
 }
 
+// A newcomer's route from the gate: out to a ring clear of the chairs, round it the short way, then in to the seat.
+const paths = [];
+function arrivalPath(index) {
+  if (paths[index]) return paths[index];
+  const seat = seatPosition(index), from = [GUEST_SPOT[0], GUEST_SPOT[1] + .3];
+  const a0 = Math.atan2(from[1], from[0]), a1 = Math.atan2(seat.y, seat.x);
+  let da = a1 - a0;
+  while (da > Math.PI) da -= Math.PI * 2;
+  while (da < -Math.PI) da += Math.PI * 2;
+  const pts = [from];
+  const n = Math.max(2, Math.ceil(Math.abs(da) / .25));
+  for (let k = 0; k <= n; k++) { const a = a0 + da * k / n; pts.push([Math.cos(a) * WALK_RING, Math.sin(a) * WALK_RING]); }
+  pts.push([seat.x, seat.y]);
+  const lengths = [0];
+  for (let k = 1; k < pts.length; k++) lengths.push(lengths[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
+  return (paths[index] = { pts, lengths, total: lengths.at(-1) });
+}
+
 function personAt(index, state) {
   const seat = seatPosition(index);
   const since = fx.arrive[index] == null ? Infinity : state.time - fx.arrive[index];
-  if (since < WALK_TIME) {
-    const t = ease(clamp(since / WALK_TIME, 0, 1)), from = [GUEST_SPOT[0], GUEST_SPOT[1] + .3];
-    const x = lerp(from[0], seat.x, t), y = lerp(from[1], seat.y, t);
-    return { walking: true, x, y, yaw: Math.atan2(seat.y - from[1], seat.x - from[0]) };
+  const path = since < Infinity ? arrivalPath(index) : null;
+  if (path && since * WALK_SPEED < path.total) {
+    const d = since * WALK_SPEED;
+    let k = 1;
+    while (k < path.pts.length - 1 && path.lengths[k] < d) k++;
+    const a = path.pts[k - 1], b = path.pts[k], u = (d - path.lengths[k - 1]) / Math.max(1e-6, path.lengths[k] - path.lengths[k - 1]);
+    return { walking: true, x: lerp(a[0], b[0], u), y: lerp(a[1], b[1], u), yaw: Math.atan2(b[1] - a[1], b[0] - a[0]) };
   }
   return { walking: false, ...seat };
 }

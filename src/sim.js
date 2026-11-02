@@ -32,7 +32,7 @@ export function createRun({ seed = 1, skipTutorial = false } = {}) {
     truck: { active: false, progress: 0, speed: 0, nextAt: 0, guestPass: false, stopped: false, signalled: false, slowTime: 0 },
     guest: { planned: false, done: false },
     lastLavadoAt: -Infinity, tipShown: false, tips: {}, arrivals: 0, over: null, rng,
-    stats: { washTop: 0, washSpill: 0, spills: 0, shortGrabs: 0 },
+    stats: { washTop: 0, washSpill: 0, spills: 0, shortGrabs: 0 }, secos: 0,
   };
   state.guest.planned = nextRandom(rng) < T.P_GUEST;
   state.truck.nextAt = randomBetween(rng, T.TRUCK_FIRST_MIN, T.TRUCK_FIRST_MAX);
@@ -171,6 +171,12 @@ function handOff(s, events, grabbed) {
   s.yerba -= T.WEAR_BASE;
   events.push({ type: 'handoff', seat: t.seat, good, value, grabbed });
   if (s.yerba <= 0) return gameOver(s, 'lavado', events);
+  // a dry mate (grabbed under SECO_FILL) annoys the ronda; SECO_LIMIT in a row and they leave
+  if (grabbed && t.fill < T.SECO_FILL) {
+    s.secos += 1;
+    if (s.secos >= T.SECO_LIMIT) return gameOver(s, 'seco', events);
+    if (s.secos === T.SECO_LIMIT - 1) tip(s, events, 'seco');
+  } else if (good) s.secos = 0;
   if (s.served % T.ARRIVE_EVERY === 0 && s.arrivals < T.ARRIVE_ORDER.length) {
     const seat = T.ARRIVE_ORDER[s.arrivals];
     s.seats[seat] = { look: 2 + s.arrivals, saidGracias: false, guest: false };

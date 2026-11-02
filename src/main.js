@@ -11,9 +11,9 @@ import { createAmbience } from './ambience.js';
 const canvas = document.getElementById('c');
 const store = createStore();
 const input = bindInput(canvas);
-const audio = createAudio({ musicUrl: 'audio/musica.mp3', truckUrl: 'audio/camion.mp3', store });
+const audio = createAudio({ truckUrl: 'audio/camion.mp3', store, onTrack: (track, phase) => ui.nowPlaying(track, phase) });
 let state = createRun({ seed: Date.now() >>> 0 });
-let started = false, overFor = 0, last = performance.now();
+let started = false, paused = false, overFor = 0, last = performance.now();
 const ambience = createAmbience();
 let ambientEvents = [];
 
@@ -38,8 +38,25 @@ function restart() {
   canvas.focus({ preventScroll: true });
 }
 
-document.getElementById('rules').addEventListener('close', () => canvas.focus({ preventScroll: true }));
-document.getElementById('rules-open').addEventListener('click', () => input.releaseAll());
+// pause: the button, P or Escape; also when the rules open or the tab is hidden
+const pauseButton = document.getElementById('pause'), pausedNote = document.getElementById('paused');
+function setPaused(on) {
+  if (on === paused || (on && (!started || state.phase === 'over'))) return;
+  paused = on;
+  input.releaseAll();
+  if (on) audio.pause(); else audio.resume();
+  pausedNote.hidden = !on;
+  pauseButton.textContent = on ? 'seguir' : 'pausa';
+  pauseButton.setAttribute('aria-pressed', String(on));
+  if (!on) canvas.focus({ preventScroll: true });
+}
+pauseButton.addEventListener('click', () => setPaused(!paused));
+addEventListener('keydown', e => {
+  if (e.code === 'KeyP' || (e.code === 'Escape' && paused)) { e.preventDefault(); setPaused(!paused); }
+});
+document.addEventListener('visibilitychange', () => { if (document.hidden) setPaused(true); });
+document.getElementById('rules').addEventListener('close', () => setPaused(false));
+document.getElementById('rules-open').addEventListener('click', () => setPaused(true));
 
 const mate = window.__mate = {
   get state() { return state; },
@@ -61,6 +78,7 @@ function frame(now) {
   last = now;
   const tilt = input.read(dt);
   const edge = input.raw.pressedEdge;
+  if (paused) { drawScene(state, now / 1000, ambience); requestAnimationFrame(frame); return; }
   if (!started && edge) {
     started = true;
     audio.start();

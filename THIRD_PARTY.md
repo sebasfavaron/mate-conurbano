@@ -29,9 +29,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
 
-## audio/musica.mp3
+## audio/music/*.mp3
 
-"Lofi chill Argentina, Rock Nacional 60/70s vol. 5". Free to use per the owner.
+"Lofi chill Argentina, Rock Nacional 60/70s vol. 5", cut into one file per song (lofi versions of
+Almendra, Sui Generis, Moris, La Joven Guardia, Pescado Rabioso, Los Gatos, Vox Dei and Serú Girán;
+titles in `src/tracks.js`). Free to use per the owner.
 
 - Source URL: TODO (owner to fill in)
 - Licence: TODO (owner to fill in)

@@ -28,6 +28,7 @@ export const LINES = {
     aim: 'Si el chorro pega en la montañita, la yerba se lava. Inclinalo menos y cae en el agujero',
     foam: 'Cuando aparece la espuma, soltá: el mate está listo',
     washing: 'La montañita se está poniendo pálida: la yerba se lava',
+    seco: 'Dos mates secos seguidos: uno más y la ronda se pudre',
   },
 };
 

@@ -17,3 +17,7 @@ test('endHint names the main cause', () => {
   assert.match(endHint({ reason: 'lavado' }, { washTop: 0, washSpill: .5, spills: 1 }), /una vez/);
   assert.match(endHint({ reason: 'gracias' }, {}), /gracias/);
 });
+test('formatEnd and endHint for the dry-mate ending', () => {
+  assert.equal(formatEnd({ reason: 'seco', score: 3, minutes: 1 }, 9)[2], 'se cansaron de los mates secos');
+  assert.match(endHint({ reason: 'seco' }, {}), /secos/);
+});

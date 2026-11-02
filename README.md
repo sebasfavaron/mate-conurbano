@@ -22,6 +22,7 @@ Node ≥ 22. Any static file server works; the site deploys as plain static file
 | Keyboard | Hold **Space** to tilt, release to straighten. Hold **Shift** for a slower, finer tilt (also mid-pour). |
 | Mouse / touch | Press and drag down: 120 px is full tilt. |
 | Gamepad | **L2 / R2**, analog. |
+| Pause | **P**, Escape or the "pausa" button. |
 
 ## Develop
 
@@ -39,6 +40,7 @@ npm i --no-save playwright && npx playwright install chromium
 - **Sound lab**: `http://127.0.0.1:5300/lab.html` — sliders for the pour synth, music/truck ducking and
   voices, with a "copiar valores" button that prints the values to paste into `src/tuning.js`.
 - **Tuning**: every number lives in `src/tuning.js`.
+- **Music**: one file per song in `audio/music/`, listed in `src/tracks.js`; they play shuffled, with a now-playing card.
 - **Lines**: add teasing lines to `src/lines.js`; categories are picked at random, never twice in a row.
 - **Playtest checklist**: `docs/playtest.md`.
 - Design and plan: `docs/specs/2026-11-02-cebar-mate-design.md`, `docs/plans/2026-11-02-cebar-mate.md`.
