@@ -67,6 +67,8 @@ function lessonFrame(dt, edge) {
   if (!((edge || lessonClicked) && lessonFor > .5)) return true;
   const was = ui.lesson;
   ui.hideLesson();
+  // the card straightened the thermos: give the waiting friend's patience back so the re-tilt is fair
+  if (state.phase === 'pour' && !state.tutorial) state.turn.waited = Math.max(0, state.turn.waited - T.LESSON_GRACE);
   lessonClicked = false;
   input.reset();
   swallow = true;
