@@ -1,7 +1,7 @@
 // Boot and frame loop: input → sim → scene.
 import { createRun, step } from './sim.js';
 import { bindInput } from './input.js';
-import { bakeScene, drawScene, sceneEvents } from './scene.js';
+import { bakeScene, drawScene, sceneEvents, resetScene } from './scene.js';
 
 const canvas = document.getElementById('c');
 const input = bindInput(canvas);
@@ -13,6 +13,7 @@ const mate = window.__mate = {
   drawn: 0,
   step(dt, tilt) { const r = step(state, dt, tilt); sceneEvents(r.events, state); drawScene(state, state.time); mate.drawn++; return r.events; },
   feed(events) { sceneEvents(events, state); },
+  reset(seed, opts = {}) { state = createRun({ seed, ...opts }); resetScene(); drawScene(state, 0); },
 };
 
 addEventListener('resize', fit);

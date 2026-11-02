@@ -22,7 +22,7 @@ try {
   page.on('pageerror', e => errors.push(String(e)));
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   await page.goto(URL);
-  await page.waitForFunction(() => window.__mate && window.__mate.drawn > 2);
+  await page.waitForFunction(() => window.__mate && window.__mate.drawn > 2, null, { timeout: 8000 }).catch(e => { console.error(errors.join('\n')); throw e; });
   const canvas = page.locator('#c');
   const shot = async (name, setup) => {
     if (only && !name.startsWith(only)) return;
@@ -50,6 +50,25 @@ try {
     m.feed([{ type: 'gracias', seat: 4, palmOnly: true }]);
     m.step(.02, 0);
   });
+
+  const rig = async (name, setup) => {
+    if (only && !name.startsWith(only)) return;
+    await page.evaluate(setup);
+    const path = `screenshots/${name}.png`;
+    await canvas.screenshot({ path });
+    // a 2x crop of the rig too, the part that has to read at a glance
+    const box = await canvas.boundingBox();
+    await page.screenshot({ path: path.replace('.png', '-zoom.png'), clip: { x: box.x + box.width * .3, y: box.y + box.height * .7, width: box.width * .4, height: box.height * .3 } });
+    shots.push(path);
+  };
+  const fresh = `const m = window.__mate; m.reset(1); `;
+  await rig('04-rig-gentle', fresh + `for (let i = 0; i < 50; i++) m.step(.02, .35);`);
+  await rig('05-rig-hard', fresh + `for (let i = 0; i < 30; i++) m.step(.02, 1);`);
+  await rig('06-rig-washed', fresh + `m.state.yerba = .2; for (let i = 0; i < 160; i++) m.step(.02, .45); m.step(.02, 0);`);
+  await rig('07-rig-overflow', fresh + `m.state.turn.fill = .97; for (let i = 0; i < 25; i++) m.step(.02, .6);`);
+  await page.evaluate(() => window.__mate.reset(1));
+
+
 } finally {
   await browser?.close();
   server.kill();

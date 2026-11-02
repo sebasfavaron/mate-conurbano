@@ -339,6 +339,203 @@ function drawPeople(state, t) {
 }
 const lerp3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
 
+/* ---------- the hero pour rig (screen space, decision D1) ---------- */
+// Your hands, the thermos and the gourd, drawn pixel by pixel over the bottom centre and not to world scale.
+const RIG = {
+  mouth: { x: 204, y: 232, rx: 13, ry: 7 },     // gourd opening seen from 30° above
+  body: { x: 204, y: 246, rx: 15, ry: 16 },     // calabaza belly below the mouth
+  pivot: { x: 168, y: 214 },                    // your left fist, where the thermos turns
+  thermo: { back: 16, front: 17, half: 6 },     // thermos length behind / ahead of the fist, half width
+  hole: { u: .35, v: .45 },                     // centre of the side hole inside the mouth (unit ellipse)
+  moundTop: { u: -.45, v: -.45 },               // dry crest against the far wall
+};
+const C = {
+  ink: rgb(36, 30, 30), steel: rampOf([170, 176, 184]), cap: rampOf([196, 52, 44]), gourd: rampOf([124, 98, 54]),
+  rim: rampOf([200, 196, 184]), skin: rampOf([224, 172, 134]), sleeve: rampOf([70, 98, 82]),
+  yerba: [98, 142, 58], yerbaWet: [52, 86, 40], yerbaPale: [176, 178, 128], hole: rgb(40, 36, 28),
+  water: rgb(132, 186, 222), waterDeep: rgb(92, 150, 196), shine: rgb(236, 248, 255), stream: rgb(156, 206, 238),
+  palito: rgb(214, 204, 150), bombilla: rampOf([200, 204, 214]),
+};
+const rigFx = { tilt: 0, t: 0, drops: [] };
+
+function px(x, y, c) {
+  x |= 0; y |= 0;
+  if (x >= 0 && y >= 0 && x < W && y < H) pix[y * W + x] = c;
+}
+const mixRgb = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+const shadeOf = (ramp, l, ix, iy) => ramp[clamp(Math.floor(l * 4.4 + .2 + (bayerAt(ix, iy) - .5) * .7), 0, 4)];
+
+// Fills a shape given by inside(x, y) → light level or null, then outlines it in ink.
+function shape(x0, y0, x1, y1, inside, ramp) {
+  const mask = [];
+  for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) {
+    const l = inside(x + .5, y + .5);
+    if (l == null) continue;
+    mask.push(x, y);
+    px(x, y, l < 16 ? shadeOf(ramp, l, x, y) : l); // small numbers are light levels, large ones packed colours
+  }
+  const isIn = (x, y) => inside(x + .5, y + .5) != null;
+  for (let k = 0; k < mask.length; k += 2) {
+    const x = mask[k], y = mask[k + 1];
+    if (!isIn(x - 1, y) || !isIn(x + 1, y) || !isIn(x, y - 1) || !isIn(x, y + 1)) px(x, y, C.ink);
+  }
+  return mask;
+}
+
+function arm(fromX, fromY, toX, toY, width, sleeveTo) {
+  const len = Math.hypot(toX - fromX, toY - fromY), dx = (toX - fromX) / len, dy = (toY - fromY) / len;
+  shape(Math.min(fromX, toX) - width, Math.min(fromY, toY) - width, Math.max(fromX, toX) + width, Math.min(H - 1, Math.max(fromY, toY) + width), (x, y) => {
+    const a = (x - fromX) * dx + (y - fromY) * dy, b = (x - fromX) * -dy + (y - fromY) * dx;
+    if (a < 0 || a > len || Math.abs(b) > width) return null;
+    const ramp = a < sleeveTo * len ? C.sleeve : C.skin;
+    return ramp[clamp(Math.round(2.6 - b / width * 1.2), 1, 4)];
+  });
+}
+
+function fist(cx, cy, rx, ry) {
+  shape(cx - rx - 1, cy - ry - 1, cx + rx + 1, cy + ry + 1, (x, y) => {
+    const u = (x - cx) / rx, v = (y - cy) / ry;
+    if (u * u + v * v > 1) return null;
+    return C.skin[clamp(Math.round(3 - u * .8 - v * .9), 1, 4)];
+  });
+  for (let k = -1; k <= 1; k++) px(cx + k * 2, cy + 1, C.skin[1]); // knuckle creases
+}
+
+function drawThermos(angle, glow) {
+  const { x: ox, y: oy } = RIG.pivot, { back, front, half } = RIG.thermo;
+  const ax = Math.sin(angle), ay = -Math.cos(angle);
+  const local = (x, y) => [(x - ox) * ax + (y - oy) * ay, (x - ox) * -ay + (y - oy) * ax];
+  const r = back + front + 4;
+  const mask = shape(ox - r, oy - r, ox + r, oy + r, (x, y) => {
+    const [a, b] = local(x, y);
+    const w = a > front - 3 ? half - 2.2 : half;   // narrower spout neck
+    if (a < -back || a > front || Math.abs(b) > w) return null;
+    const l = .78 - b / half * .42 + (a > front - 3 ? .1 : 0);
+    if (a > front - 9 && a <= front - 3) return shadeOf(C.cap, l, x | 0, y | 0);
+    return l;
+  }, C.steel);
+  if (glow) outlineGlow(mask);
+  return [ox + ax * front, oy + ay * front];
+}
+
+function outlineGlow(mask) {
+  const set = new Set();
+  for (let k = 0; k < mask.length; k += 2) set.add(mask[k] + ',' + mask[k + 1]);
+  for (let k = 0; k < mask.length; k += 2) {
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const x = mask[k] + dx, y = mask[k + 1] + dy;
+      if (!set.has(x + ',' + y)) px(x, y, SIGNAL);
+    }
+  }
+}
+
+// Inside the mouth: u, v in the unit ellipse (v = -1 far wall, +1 near wall).
+function moundEdge(u, height) {
+  return lerp(-.55, .25, height) - .55 * u;   // the mound covers v below this line, sloping to the hole
+}
+
+function drawRigGourd(fill, yerba, wetTop, overflow, glow) {
+  const { mouth: m, body: b } = RIG;
+  // belly
+  const belly = shape(b.x - b.rx - 1, m.y, b.x + b.rx + 1, b.y + b.ry + 1, (x, y) => {
+    const u = (x - b.x) / b.rx, v = (y - b.y) / b.ry;
+    const neck = y < m.y + m.ry ? Math.abs(x - m.x) <= m.rx + 1 + (y - m.y) * .3 : true;
+    if (u * u + v * v > 1 || !neck) return null;
+    return .72 - u * .45 - v * .2;
+  }, C.gourd);
+  // rim and inside
+  const height = lerp(.35, 1, clamp(yerba, 0, 1));
+  const hole = [RIG.hole.u, RIG.hole.v];
+  const water = clamp(fill, 0, 1);
+  const wr = lerp(.08, .62, Math.sqrt(water));
+  const mask = shape(m.x - m.rx - 1, m.y - m.ry - 1, m.x + m.rx + 1, m.y + m.ry + 1, (x, y) => {
+    const u = (x - m.x) / m.rx, v = (y - m.y) / m.ry, d = u * u + v * v;
+    if (d > 1) return null;
+    if (d > .7) return C.rim[clamp(Math.round(3.2 - v * 1.2), 1, 4)];
+    const ix = x | 0, iy = y | 0;
+    const du = (u - hole[0]) / 1.2, dv = v - hole[1] + water * .18, hd = Math.hypot(du, dv);
+    if (water > 0 && (hd < wr || (water >= .999 && v > moundEdge(u, height)))) {
+      if (Math.abs(du + .12) < .12 && Math.abs(dv + wr * .55) < .08) return C.shine;
+      return hd > wr * .7 ? C.waterDeep : C.water;
+    }
+    if (v < moundEdge(u, height)) {
+      const crest = clamp((moundEdge(u, height) - v) / .9, 0, 1);
+      let c = mixRgb(C.yerba, C.yerbaPale, clamp((1 - yerba) * 1.1, 0, 1));
+      c = mixRgb(c, C.yerbaWet, clamp(wetTop * (1.2 - crest * .4), 0, 1) * .85);
+      return shadeOf(rampOf(c.map(Math.round)), .55 + crest * .35 - u * .15, ix, iy);
+    }
+    return C.hole;
+  });
+  // palitos: pale stalks floating once the yerba is washed
+  if (yerba <= T.LAVADO_AT && water > .15) {
+    const cx = m.x + hole[0] * m.rx, cy = m.y + (hole[1] - water * .18) * m.ry;
+    for (const [ox, oy, dir] of [[-4, -1, 1], [1, 1, -1], [3, -2, 1], [-1, 2, 1]].slice(0, 2 + Math.round(water * 2))) {
+      for (let k = 0; k < 3; k++) px(cx + ox + k, cy + oy + (dir > 0 ? 0 : k > 1 ? 1 : 0), C.palito);
+    }
+  }
+  // bombilla, rising from the near-right side of the mouth
+  for (let k = 0; k < 18; k++) {
+    const x = m.x + 7 + k * .45, y = m.y + 2 - k;
+    px(x, y, C.bombilla[3]); px(x + 1, y, C.bombilla[1]);
+  }
+  px(m.x + 15, m.y - 17, C.bombilla[4]); px(m.x + 16, m.y - 17, C.bombilla[3]);
+  // overflow: water running down the outside of the gourd
+  if (overflow > 0) {
+    const run = Math.min(1, overflow * 6 + .3);
+    for (const [ox, len] of [[-9, 10], [-3, 14], [5, 12], [10, 8]]) {
+      const n = Math.round(len * run);
+      for (let k = 0; k < n; k++) {
+        const x = m.x + ox + Math.round(Math.sin((k + ox) * .7) * .6), y = m.y + m.ry - 1 + k;
+        px(x, y, k % 4 === (Math.floor(rigFx.t * 12) % 4) ? C.shine : C.stream);
+      }
+    }
+  }
+  if (glow) { outlineGlow(belly); outlineGlow(mask); }
+}
+
+function landingPoint(land, yerba) {
+  const { mouth: m } = RIG, height = lerp(.35, 1, clamp(yerba, 0, 1));
+  const top = { u: RIG.moundTop.u, v: Math.min(RIG.moundTop.v, moundEdge(RIG.moundTop.u, height) - .25) };
+  const u = lerp(RIG.hole.u, top.u, land), v = lerp(RIG.hole.v, top.v, land);
+  return [m.x + u * m.rx, m.y + v * m.ry];
+}
+
+function drawStream(from, to, flow) {
+  const width = 1 + Math.round(2 * clamp(flow / T.FLOW_MAX, 0, 1));
+  const n = Math.ceil(Math.hypot(to[0] - from[0], to[1] - from[1]) * 1.5);
+  for (let k = 0; k <= n; k++) {
+    const t = k / n;
+    // a short arc out of the spout, then falling
+    const x = lerp(from[0], to[0], 1 - (1 - t) * (1 - t)), y = lerp(from[1], to[1], t * t * .6 + t * .4);
+    for (let w = 0; w < width; w++) px(x + w - (width >> 1), y, (k + Math.floor(rigFx.t * 20)) % 7 === 0 ? C.shine : C.stream);
+  }
+  for (let k = 0; k < 3; k++) px(to[0] - 2 + k * 2, to[1] - 1, C.shine); // splash
+}
+
+export function drawRig(state, t) {
+  const dt = clamp(t - rigFx.t, 0, .1);
+  rigFx.t = t;
+  rigFx.tilt += (state.tilt - rigFx.tilt) * (1 - Math.exp(-dt * 30));
+  const inHand = state.phase === 'pour' || (state.tutorial && state.phase === 'drink') || state.phase === 'over';
+  const pulse = state.tutorial && state.phase === 'pour' && state.turn.fill === 0 && (STILL || Math.floor(t * 2) % 2 === 0);
+  let fill = state.turn.fill;
+  if (state.tutorial && state.phase === 'drink') fill *= 1 - clamp(state.phaseTime / T.DRINK_TIME, 0, 1);
+  const angle = lerp(0, 105 * Math.PI / 180, inHand ? rigFx.tilt : 0);
+
+  // your right hand under the gourd (or empty and cupped while the mate goes round)
+  arm(RIG.body.x + 10, H + 6, RIG.body.x + 3, RIG.body.y + 13, 6, .55);
+  if (inHand) {
+    drawRigGourd(fill, state.yerba, state.wetTop, state.phase === 'pour' ? state.turn.overflow : 0, pulse);
+    fist(RIG.body.x - 2, RIG.body.y + 14, 9, 4);
+  } else fist(RIG.body.x + 3, RIG.body.y + 12, 8, 5);
+
+  // your left hand on the thermos
+  arm(RIG.pivot.x - 22, H + 6, RIG.pivot.x - 2, RIG.pivot.y + 4, 6, .6);
+  const spout = drawThermos(angle, pulse);
+  fist(RIG.pivot.x - 1, RIG.pivot.y + 2, 6, 5);
+  if (state.flow > 0 && state.phase !== 'over') drawStream(spout, landingPoint(state.land, state.yerba), state.flow);
+}
+
 /* ---------- per frame ---------- */
 export function drawScene(state, t) {
   pix.set(bakedPix);
@@ -351,6 +548,7 @@ export function drawScene(state, t) {
   flushShadows();
   applyShadows(bakedZ);
   shadeEdges();
+  drawRig(state, t);
   ctx.putImageData(image, 0, 0);
 }
 
