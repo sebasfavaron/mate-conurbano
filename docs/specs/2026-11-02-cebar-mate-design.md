@@ -195,7 +195,7 @@ A small corner lot floating on white:
 |---|---|
 | **Gamepad** | `max(L2, R2)` analog value (standard mapping buttons 6/7 `.value`), dead zone 0.05 then rescaled to 0–1. Polled every frame. |
 | **Pointer / touch** | Press anywhere and drag downward: 0 → 120 CSS px maps to 0 → 1. Release → 0. |
-| **Keyboard** | Space held: `tilt += 1.0/s`. Space released: `tilt −= 1.75/s` *(was 2.5/s; too hard to hold a tilt without Shift)*. With **Shift** held, both rates switch to the **fine mode**: up `0.35/s`, down `0.6/s`. Shift can be pressed or released at any moment, even mid-pour (fast start, slow finish). Shift alone (Space up) makes the thermos return slowly. |
+| **Keyboard** | Space held: `tilt += 1.0/s`. Space released: `tilt −= 1.25/s` *(was 2.5/s; too hard to hold a tilt without Shift)*. With **Shift** held, both rates switch to the **fine mode**: up `0.35/s`, down `0.6/s`. Shift can be pressed or released at any moment, even mid-pour (fast start, slow finish). Shift alone (Space up) makes the thermos return slowly. |
 
 - The most recently active source wins.
 - The thermos' drawn angle follows `tilt` with light smoothing (no lag a player would feel).
