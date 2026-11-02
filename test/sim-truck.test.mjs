@@ -77,3 +77,15 @@ test('guest patience is 8 s', () => {
   }
   assert.fail('guest never had a turn');
 });
+test('the driver never says a lavado line', () => {
+  const { log } = (() => {
+    const s = createRun({ seed: guestRun(), skipTutorial: true }); const log = [];
+    while (s.rondaTime < 600 && s.phase !== 'over' && !s.guest.done) {
+      s.yerba = .25;
+      for (const e of step(s, .05, bot(s)).events) log.push(e);
+    }
+    return { log };
+  })();
+  assert.ok(log.some(e => e.type === 'guestLeave'));
+  assert.ok(!log.some(e => e.type === 'lavado' && e.seat === 6));
+});

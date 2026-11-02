@@ -121,6 +121,7 @@ function pourTick(s, h, tilt, aim, events) {
 function endPour(s, events) {
   const t = s.turn;
   t.pouring = false;
+  t.spilled = false;
   events.push({ type: 'pourEnd', wash: t.pourWash });
   if (t.pourWash > T.SHIFT_TIP_WASH) showTip(s, events);
   t.pourWash = 0;
@@ -150,6 +151,7 @@ function handOff(s, events, grabbed) {
   s.score += value;
   s.yerba -= T.WEAR_BASE;
   events.push({ type: 'handoff', seat: t.seat, good, value, grabbed });
+  if (s.yerba <= 0) return gameOver(s, 'lavado', events);
   if (s.served % T.ARRIVE_EVERY === 0 && s.arrivals < T.ARRIVE_ORDER.length) {
     const seat = T.ARRIVE_ORDER[s.arrivals];
     s.seats[seat] = { look: 2 + s.arrivals, saidGracias: false, guest: false };
@@ -157,7 +159,6 @@ function handOff(s, events, grabbed) {
     events.push({ type: 'arrive', seat });
   }
   if (s.served === T.SHIFT_TIP_MATE) showTip(s, events);
-  if (s.yerba <= 0) return gameOver(s, 'lavado', events);
   setPhase(s, 'out');
 }
 
@@ -179,7 +180,7 @@ function passTick(s, events) {
 
 function beginBack(s, events) {
   const seat = s.turn.seat;
-  if (s.yerba <= T.LAVADO_AT && s.rondaTime - s.lastLavadoAt >= T.LAVADO_EVERY - EPS) {
+  if (seat !== GUEST_SEAT && s.yerba <= T.LAVADO_AT && s.rondaTime - s.lastLavadoAt >= T.LAVADO_EVERY - EPS) {
     s.lastLavadoAt = s.rondaTime;
     events.push({ type: 'lavado', seat });
   }

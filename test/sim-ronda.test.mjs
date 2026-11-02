@@ -105,3 +105,15 @@ test('skipTutorial starts at the first friend turn unarmed', () => {
   const s = createRun({ seed: 1, skipTutorial: true });
   assert.equal(s.tutorial, false); assert.equal(s.turn.seat, 2); assert.equal(s.turn.armed, false); assert.equal(s.phase, 'pour');
 });
+test('one big dt across two grabs equals many small steps (Review Focus 1)', () => {
+  const a = afterTutorial(), b = afterTutorial();
+  const ea = step(a, 20, 0).events, eb = [];
+  for (let i = 0; i < 2000; i++) eb.push(...step(b, .01, 0).events);
+  assert.deepEqual(types(ea), types(eb));
+  assert.ok(types(ea).filter(t => t === 'handoff').length >= 2);
+});
+test('the hand-off that washes the last yerba announces no arrival', () => {
+  const s = afterTutorial(); s.served = 4; s.yerba = .015;
+  const ev = serve(s);
+  assert.equal(find(ev, 'gameOver').reason, 'lavado'); assert.ok(!types(ev).includes('arrive'));
+});

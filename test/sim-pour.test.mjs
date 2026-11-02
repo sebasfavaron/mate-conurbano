@@ -55,3 +55,8 @@ test('big dt equals many small steps', () => {
   for (let i = 0; i < 20; i++) eb.push(...step(b, .05, 1).events);
   assert.equal(a.turn.fill, b.turn.fill); assert.equal(a.yerba, b.yerba); assert.deepEqual(types(ea), types(eb));
 });
+test('a second overflow after stopping is a new spill', () => {
+  const s = createRun({ seed: 1 }); s.turn.fill = .99;
+  const ev = [...pourFor(s, .2, .5), ...pourFor(s, .05, 0), ...pourFor(s, .2, .5)];
+  assert.equal(ev.filter(e => e.type === 'spill').length, 2);
+});
