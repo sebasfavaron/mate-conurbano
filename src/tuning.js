@@ -5,7 +5,7 @@ export const T = Object.freeze({
   // yerba
   WEAR_BASE: .02, WASH_TOP: .10, WASH_SPILL: .05, WASH_OVERFLOW: .20, WET_DRY_RATE: .05, LAVADO_AT: .30, LAVADO_EVERY: 20,
   // ronda
-  PATIENCE_START: 6.2, PATIENCE_END: 4.2, PATIENCE_RAMP_MATES: 30, TEASE_AT: Object.freeze([.9]), PASS_TIME: .8, DRINK_TIME: 3.0,
+  PATIENCE_START: 6.2, PATIENCE_END: 4.2, PATIENCE_RAMP_MATES: 30, TEASE_AT: Object.freeze([.9]), TEASE_CHANCE: .5, PASS_TIME: .8, DRINK_TIME: 3.0,
   SEATS: 6, START_SEATS: Object.freeze([2, 4]), ARRIVE_ORDER: Object.freeze([3, 1, 5]), ARRIVE_EVERY: 5,
   // gracias
   SECO_FILL: .4, SECO_LIMIT: 3,

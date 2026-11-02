@@ -35,7 +35,7 @@ test('phase timings', () => {
   assert.deepEqual(at, ['out', 'drink', 'drink', 'back', 'back', 'pour']);
 });
 test('one tease per turn at 90 %, then grab', () => {
-  const s = afterTutorial();
+  const s = afterTutorial(); s.turn.speaks = true;
   near(firstAt(s, 'tease'), 5.58);
   const ev = until(s, 0, (st, e) => e.some(x => x.type === 'handoff')), h = find(ev, 'handoff');
   assert.ok(!types(ev).includes('tease'));
@@ -151,4 +151,18 @@ test('a good mate resets the dry streak', () => {
   for (let i = 0; i < 2; i++) until(s, 0, (st, e) => e.some(x => x.type === 'turn'));
   assert.equal(s.secos, 2);
   serve(s, .9, .55); assert.equal(s.secos, 0);
+});
+test('teases come on about half the turns, at random', () => {
+  let said = 0, turns = 0;
+  for (let seed = 0; seed < 200; seed++) {
+    const s = afterTutorial(seed); turns++;
+    if (until(s, 0, (st, e) => e.some(x => x.type === 'handoff')).some(e => e.type === 'tease')) said++;
+  }
+  near(said / turns, .5, .1);
+});
+test('a silent turn still ends the quick bonus at 90 %', () => {
+  const s = afterTutorial(); s.turn.speaks = false;
+  const ev = pourFor(s, 5.7, 0);
+  assert.ok(!ev.some(e => e.type === 'tease'));
+  assert.equal(s.turn.teases, 1); // the hand-off reads this as "teased": no quick bonus
 });

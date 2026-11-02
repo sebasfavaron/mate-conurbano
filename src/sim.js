@@ -123,7 +123,8 @@ function pourTick(s, h, tilt, aim, events) {
     const window = patienceWindow(s);
     while (t.teases < T.TEASE_AT.length && t.waited >= T.TEASE_AT[t.teases] * window - EPS) {
       t.teases += 1;
-      events.push({ type: 'tease', seat: t.seat, level: t.teases });
+      // the 90 % mark always counts (it ends the quick bonus); the friend only says it on some turns
+      if (t.speaks) events.push({ type: 'tease', seat: t.seat, level: t.teases });
     }
     if (t.waited >= window - EPS) return handOff(s, events, true);
   }
@@ -282,6 +283,7 @@ function startTurn(s, seat, events) {
   if (seat !== GUEST_SEAT) s.lastSeat = seat;
   const trap = !!s.seats[seat]?.saidGracias;
   s.turn = newTurn(seat, trap, s.tilt < T.TILT_FLOW_MIN);
+  s.turn.speaks = nextRandom(s.rng) < T.TEASE_CHANCE;
   setPhase(s, 'pour');
   events.push({ type: 'turn', seat, trap });
 }
