@@ -17,6 +17,7 @@ export const LINES = {
   grabEmpty: ['Che, ¡está seco!', '¿Y el agua, maestro?', '¿Mate de yerba sola? Innovador'],
   grab: ['Dame que se enfría', 'Así nomás, traé', '¿Medio mate? Bueno, peor es nada'],
   skip: ['Ya estoy, pasalo', 'No, pasá nomás'],
+  leave: ['Me voy a patear un rato', '¿Jugamos a que no caiga?', 'Voy a estirar las piernas'],
   guestAsk: ['Una mano, maestro, ¿me convidás uno?'],
   guestThanks: ['Gracias, jefe'],
   tutorial: {
@@ -46,6 +47,7 @@ export const LESSONS = {
   gracias: ['Dijo gracias', 'Ya no quiere más. Cuando le toque, no inclines el termo y el mate pasa solo. Si le cebás, perdiste.'],
   truck: ['El camión de los muebles', 'Mientras pasa no se escucha nada. Si alguien dice gracias, solo vas a ver la mano levantada.'],
   guest: ['¡Frena el camionero!', 'Quiere un mate. El suyo vale doble.'],
+  side: ['Que no caiga', 'Los que dijeron gracias se van a jugar a la pelota. Dejan la silla libre para alguien nuevo.'],
 };
 
 export const RULES = [

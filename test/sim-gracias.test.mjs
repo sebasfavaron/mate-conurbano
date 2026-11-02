@@ -68,7 +68,7 @@ test('trap turn skips after 1.2 s of no water', () => {
   const s = trapTurn(); const served = s.served; let at = null; const ev = [];
   for (let t = .01; t < 3; t += .01) { const e = step(s, .01, 0).events; ev.push(...e); if (!at && e.some(x => x.type === 'skip')) { at = t; assert.equal(find(e, 'turn').seat, 4); } }
   near(at, 1.2); assert.equal(s.served, served); assert.ok(!types(ev).includes('tease'));
-  assert.equal(find(ev, 'skip').points, 50); assert.equal(s.points, 50);
+  assert.equal(s.points, 0); // praise, no points
 });
 test('holding the trigger into a trap turn is safe', () => {
   const s = trapTurn(.8); assert.equal(s.turn.armed, false);
@@ -83,4 +83,17 @@ test('any water on a trap turn is game over', () => {
 test('trap check survives a big dt', () => {
   const s = trapTurn(); step(s, .01, 0);
   assert.equal(find(step(s, .5, .9).events, 'gameOver')?.reason, 'gracias');
+});
+test('after two skipped laps a gracias friend leaves to play on the side, and a newcomer can take the chair', () => {
+  const s = ronda(8, [1, 2, 3, 4]); s.seats[2].saidGracias = true; s.truck.nextAt = 1e9;
+  const ev = [];
+  for (let i = 0; i < 40 && s.seats[2]; i++) ev.push(...serve(s));
+  const leave = find(ev, 'leave');
+  assert.equal(leave.seat, 2); assert.equal(s.seats[2], null);
+  assert.equal(ev.filter(e => e.type === 'skip' && e.seat === 2).length, 2);
+  assert.deepEqual(s.side.map(x => x.look), [1]);
+  for (let i = 0; i < 12 && !s.seats[2]; i++) ev.push(...serve(s));
+  assert.ok(s.seats[2], 'someone sits in the freed chair');
+  const used = [1, 2, 3, 4].map(i => s.seats[i]?.look).filter(l => l != null);
+  assert.equal(new Set([...used, ...s.side.map(x => x.look)]).size, used.length + s.side.length, 'every look is unique');
 });

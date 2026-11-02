@@ -217,6 +217,10 @@ export const LOOKS = [
   { shirt: [70, 70, 78], stripe: [70, 70, 78], legs: [40, 42, 50], hair: [26, 22, 22], skin: [180, 130, 96], detail: 'hoodie' },
   { shirt: [236, 196, 70], stripe: [236, 196, 70], legs: [62, 78, 110], hair: [110, 74, 44], skin: [230, 184, 148], detail: 'sunglasses' },
   { shirt: [210, 206, 196], stripe: [210, 206, 196], legs: [58, 64, 80], hair: [90, 84, 80], skin: [196, 140, 104], detail: 'cap', cap: [44, 88, 60], scale: 1.15, heavy: true },
+  // friends who arrive later, once others have left the table
+  { shirt: [150, 84, 160], stripe: [150, 84, 160], legs: [52, 56, 70], hair: [196, 150, 70], skin: [234, 190, 156], detail: 'moustache' },
+  { shirt: [228, 228, 222], stripe: [70, 120, 200], legs: [90, 70, 56], hair: [50, 36, 30], skin: [190, 136, 100], detail: 'stripes' },
+  { shirt: [214, 110, 60], stripe: [214, 110, 60], legs: [60, 66, 84], hair: [30, 26, 26], skin: [206, 154, 118], detail: 'cap', cap: [236, 236, 230] },
 ];
 const SHOE_C = [226, 222, 212], DARK = [30, 28, 30];
 
@@ -273,9 +277,9 @@ export function seatedFigure(px, py, yaw, pose, look, addBone) {
 
 /* ---------- gestures fed by sim events ---------- */
 const WALK_SPEED = 2.2, WALK_RING = 3.4, PALM_TIME = 1.2;
-const fx = { palm: [], arrive: [], offended: -1 };
+const fx = { palm: [], arrive: [], leave: {}, offended: -1 };
 export function resetScene() {
-  fx.palm = []; fx.arrive = []; fx.offended = -1;
+  fx.palm = []; fx.arrive = []; fx.leave = {}; fx.offended = -1;
   truckFx.signalAt = truckFx.stopAt = truckFx.leaveAt = -99;
   dust.length = 0;
 }
@@ -285,6 +289,10 @@ export function sceneEvents(events, state) {
     if (e.type === 'gracias') fx.palm[e.seat] = state.time;
     else if (e.type === 'skip') fx.palm[e.seat] = state.time;
     else if (e.type === 'arrive') fx.arrive[e.seat] = state.time;
+    else if (e.type === 'leave') {
+      const from = seatPosition(e.seat), k = state.side.findIndex(x => x.look === e.look);
+      fx.leave[e.look] = { t: state.time, path: ringPath([from.x, from.y], SIDE_SPOTS[Math.max(0, k)]) };
+    }
     else if (e.type === 'gameOver' && e.reason === 'gracias') fx.offended = e.seat;
   }
 }
@@ -303,18 +311,73 @@ function drawGourd(p) {
 const paths = [];
 function arrivalPath(index) {
   if (paths[index]) return paths[index];
-  const seat = seatPosition(index), from = [GUEST_SPOT[0], GUEST_SPOT[1] + .3];
-  const a0 = Math.atan2(from[1], from[0]), a1 = Math.atan2(seat.y, seat.x);
+  const seat = seatPosition(index);
+  return (paths[index] = ringPath([GUEST_SPOT[0], GUEST_SPOT[1] + .3], [seat.x, seat.y]));
+}
+// From one point to another without crossing the table: out to a ring clear of the chairs, round it, then in.
+function ringPath(from, to) {
+  const a0 = Math.atan2(from[1], from[0]), a1 = Math.atan2(to[1], to[0]);
   let da = a1 - a0;
   while (da > Math.PI) da -= Math.PI * 2;
   while (da < -Math.PI) da += Math.PI * 2;
   const pts = [from];
   const n = Math.max(2, Math.ceil(Math.abs(da) / .25));
   for (let k = 0; k <= n; k++) { const a = a0 + da * k / n; pts.push([Math.cos(a) * WALK_RING, Math.sin(a) * WALK_RING]); }
-  pts.push([seat.x, seat.y]);
+  pts.push(to);
   const lengths = [0];
   for (let k = 1; k < pts.length; k++) lengths.push(lengths[k - 1] + Math.hypot(pts[k][0] - pts[k - 1][0], pts[k][1] - pts[k - 1][1]));
-  return (paths[index] = { pts, lengths, total: lengths.at(-1) });
+  return { pts, lengths, total: lengths.at(-1) };
+}
+function along(path, d) {
+  let k = 1;
+  while (k < path.pts.length - 1 && path.lengths[k] < d) k++;
+  const a = path.pts[k - 1], b = path.pts[k], u = clamp((d - path.lengths[k - 1]) / Math.max(1e-6, path.lengths[k] - path.lengths[k - 1]), 0, 1);
+  return { x: lerp(a[0], b[0], u), y: lerp(a[1], b[1], u), yaw: Math.atan2(b[1] - a[1], b[0] - a[0]) };
+}
+
+/* ---------- 'que no caiga': friends who said gracias bounce a ball on the side ---------- */
+const SIDE_SPOTS = [[-6.4, 4.9], [-3.8, 4.2], [-3.7, 5.9]]; // spread across the screen, left of the table
+const BALL = [236, 232, 220], BALL_PASS = 1.1;
+function sidePlace(k, look, state) {
+  const spot = SIDE_SPOTS[k] || SIDE_SPOTS[0];
+  const go = fx.leave[look];
+  if (go) {
+    const d = (state.time - go.t) * WALK_SPEED;
+    if (d < go.path.total) return { walking: true, ...along(go.path, d) };
+  }
+  const n = state.side.length, c = SIDE_SPOTS.slice(0, n).reduce((m, p) => [m[0] + p[0] / n, m[1] + p[1] / n], [0, 0]);
+  return { walking: false, x: spot[0], y: spot[1], yaw: n > 1 ? Math.atan2(c[1] - spot[1], c[0] - spot[0]) : -Math.PI / 2 };
+}
+export function sideHead(look, state) {
+  const k = state.side.findIndex(x => x.look === look);
+  const at = k < 0 ? { x: SIDE_SPOTS[0][0], y: SIDE_SPOTS[0][1] } : sidePlace(k, look, state);
+  const p = project(at.x, at.y, 2.2);
+  return { sx: p.sx, sy: p.sy };
+}
+function drawSide(state, t) {
+  const players = state.side.map((f, k) => ({ ...f, at: sidePlace(k, f.look, state) }));
+  const ready = players.filter(p => !p.at.walking);
+  for (const p of players) {
+    const look = LOOKS[p.look] || LOOKS[0];
+    const stride = p.at.walking && !STILL ? Math.sin(t * 9) * .35 : 0;
+    figure(p.at.x, p.at.y, p.at.yaw, { stance: .15 + stride * .2, armR: stride - .1, armL: -stride - .1, lean: p.at.walking ? 0 : .08 }, look, dynamicAdd);
+  }
+  if (!ready.length) return;
+  const foot = p => [p.at.x + Math.cos(p.at.yaw) * .45, p.at.y + Math.sin(p.at.yaw) * .45];
+  let ball;
+  if (STILL) { const f = foot(ready[0]); ball = [f[0], f[1], .15]; }
+  else if (ready.length === 1) {
+    // alone: keepy-uppy off one foot
+    const u = (t / .75) % 1, f = foot(ready[0]);
+    ball = [f[0], f[1], .3 + 1.5 * 4 * u * (1 - u)];
+  } else {
+    // a few: the ball goes round, a high kick from one to the next
+    const leg = Math.floor(t / BALL_PASS), u = (t / BALL_PASS) % 1;
+    const a = foot(ready[leg % ready.length]), b = foot(ready[(leg + 1) % ready.length]);
+    ball = [lerp(a[0], b[0], u), lerp(a[1], b[1], u), .3 + 2.4 * 4 * u * (1 - u)];
+  }
+  sphere(ball[0], ball[1], ball[2], .16, BALL, 'gloss');
+  castShadow(ball[0], ball[1], ball[2] - .13, .12, 1, 0);
 }
 
 function personAt(index, state) {
@@ -893,6 +956,7 @@ export function drawScene(state, t, amb) {
   pendingShadows.length = 0;
   drawTruck(state, t);
   if (amb) drawDog(amb.dog, t);
+  drawSide(state, t);
   drawPeople(state, t);
   drawDust(t);
   truckFx.lastT = t;

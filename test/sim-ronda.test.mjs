@@ -47,36 +47,33 @@ test('grab happens exactly at the patience window', () => {
   until(s, 0, (st, ev) => ev.some(e => e.type === 'handoff'));
   near(s.time - start, 6.2);
 });
-test('patience shrinks to 4.2 s by mate 30', () => {
-  const s = afterTutorial(); s.served = 30; const start = s.time;
+test('patience shrinks to 5 s by mate 40', () => {
+  const s = afterTutorial(); s.served = 40; const start = s.time;
   until(s, 0, (st, ev) => ev.some(e => e.type === 'handoff'));
-  near(s.time - start, 4.2);
+  near(s.time - start, 5.0);
 });
 test('grab with a full mate still counts', () => {
   const s = afterTutorial();
   const h = find(until(s, .45, (st, ev) => ev.some(e => e.type === 'handoff')), 'handoff');
   assert.deepEqual([h.grabbed, h.good, h.value], [true, true, 1]);
 });
-test('arrival every 5 mates, in ARRIVE_ORDER, max 3 arrivals', () => {
-  const s = afterTutorial(); const arrivals = [];
-  while (s.served < 20 && s.phase !== 'over') {
-    for (const e of serve(s)) if (e.type === 'arrive') arrivals.push([e.seat, s.served]);
-    s.yerba = 1;
-  }
-  assert.deepEqual(arrivals.map(a => a[0]), [3, 1, 5]);
-  assert.ok(arrivals.every(([, n], i) => n >= (i + 1) * 5));
-  assert.equal(s.served, 20);
-});
-test('arrivals happen at served 5, 10, 15', () => {
+test('the first three arrivals come every 5 mates, in ARRIVE_ORDER', () => {
   const s = afterTutorial(); const at = [];
-  while (s.served < 20) {
+  while (s.served < 15) {
     until(s, st => (st.phase === 'pour' && !st.turn.trap && st.turn.fill < .9 ? .5 : 0), (st, ev) => {
-      for (const e of ev) if (e.type === 'arrive') at.push(st.served);
+      for (const e of ev) if (e.type === 'arrive') at.push([e.seat, st.served]);
       return ev.some(e => e.type === 'turn');
     });
     s.yerba = 1;
   }
-  assert.deepEqual(at, [5, 10, 15]);
+  assert.deepEqual(at, [[3, 5], [1, 10], [5, 15]]);
+});
+test('later arrivals only fill chairs a gracias friend left', () => {
+  const s = afterTutorial(); const ev = [];
+  while (s.served < 40 && s.phase !== 'over') { ev.push(...serve(s)); s.yerba = 1; }
+  const later = ev.filter(e => e.type === 'arrive').slice(3), left = ev.filter(e => e.type === 'leave');
+  assert.ok(later.length <= left.length);
+  for (const a of later) assert.ok(left.some(l => l.seat === a.seat));
 });
 test('re-arm: holding through hand-off does not pour', () => {
   const s = afterTutorial();
@@ -116,7 +113,7 @@ test('one big dt across two grabs equals many small steps (Review Focus 1)', () 
 test('the hand-off that washes the last yerba announces no arrival', () => {
   const s = afterTutorial(); s.served = 4; s.yerba = .015;
   const ev = serve(s);
-  assert.equal(find(ev, 'gameOver').reason, 'lavado'); assert.ok(!types(ev).includes('arrive'));
+  assert.equal(find(ev, 'gameOver').reason, 'gastada'); assert.ok(!types(ev).includes('arrive'));
 });
 test('a slightly brave early pour beats the tease', () => {
   const s = afterTutorial(); let start = 0;

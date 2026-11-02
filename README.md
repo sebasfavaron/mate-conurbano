@@ -15,7 +15,7 @@ All player-facing text is in Argentine Spanish. Plain JavaScript, no build step,
 npm run serve        # http://127.0.0.1:5300/
 ```
 
-Node ≥ 22. Any static file server works; the site deploys as plain static files.
+Node ≥ 22. Any static file server works; the site deploys as plain static files (GitHub Pages from `main`, root, works as is).
 
 | Input | How |
 |---|---|

@@ -32,6 +32,10 @@ quoted game text is final copy unless marked otherwise.
 - Not part of the Pixel Plays menu. Own repo (`sebasfavaron/mate-conurbano`), own Spanish shell
   (rules dialog, mute). Structured so it could later move into Pixel Plays as a `mate/` folder.
 
+**Kept for later**
+- *Cambiar la yerba*: an action that refreshes the mound at a cost (time, the streak). Not built: for now a run
+  always ends. Once the game is fleshed out, it is the way to make a run potentially endless.
+
 **Out of scope (for this version)**
 - Other maps — kept as future ideas: *ronda en la plaza* (park blanket, Palermo) and *playa*
   (beach chairs, windbreak, wind nudging the stream).
@@ -105,9 +109,15 @@ All values live in `src/tuning.js`; numbers below are starting points.
   100, +50 brim-full (≥ 97 %) or +25 near it (≥ 92 %), up to +50 for keeping the mound dry, +30 for beating the
   tease; −40 for a spill. Clean, unspilled, ungrabbed mates build a streak (×1.1 per mate, up to ×2). A grab of a
   full mate halves it; a grab under `FILL_OK` scores 0. The truck guest doubles it.
-- A correct skip of someone who said gracias earns `PTS_SKIP = 50` and keeps the streak.
+- A correct skip of someone who said gracias earns no points: a green *¡Bien recordado!* says it was right.
 - A popup beside the gourd names the result (*¡Perfecto!*, *¡Muy bien!*, *Bien*, *Zafa*, or red *¡Te lo sacaron!*)
   and the bonuses. The corner shows points and mates; the record is by points.
+
+- *(Playtest 2026-11-02, gentler late game)* Patience shrinks to 5.0 s by mate 40 (was 4.2 s by 30). A grab of a
+  **full** mate is a neutral *¡Justo!*: ×0.8 and it keeps the streak. Red *¡Te lo sacaron!* is only for short mates.
+- **Gentler ending**: if the yerba ran out with little washing (`NATURAL_WASH = 0.35` total), the run ends as
+  *la yerba dio todo lo que tenía*, not *se lavó*. A **compartir** button on the end screen shares or copies a
+  one-line result.
 
 ### 2.6 Gracias (the bomb)
 - When a friend **hands the mate back**, they may say *gracias* (bubble + raised palm + voice blips).
@@ -119,6 +129,10 @@ All values live in `src/tuning.js`; numbers below are starting points.
 - On that friend's next turn: if no water falls for `SKIP_DELAY = 1.2 s` the gourd passes to the next
   active friend automatically (no patience timer and no tease on that turn). **If any water falls** (`flow > 0` for any frame after re-arm) it is
   **game over**: offended face + a bomb line (§5.2).
+
+- *(Playtest 2026-11-02)* After `LEAVE_AFTER_SKIPS = 2` skipped laps, a friend who said gracias gets up and goes to
+  play *que no caiga* (keeping a ball in the air) on the side of the patio, up to 3 at a time. Their chair is free
+  for a newcomer at the next arrival (every 5 mates), with a look nobody else is wearing.
 
 ### 2.7 The circle grows
 - Every `ARRIVE_EVERY = 5` served mates a new friend pulls up a chair (walks in from the fence gate,
@@ -194,7 +208,7 @@ A small corner lot floating on white:
   the truck has left.
 
 ### 3.6 Dusk
-- Light drifts from afternoon (`dusk = 0`) to sunset (`dusk = 1`) over **12 minutes** of ronda.
+- Light drifts from afternoon (`dusk = 0`) to sunset (`dusk = 1`) over **6 minutes** of ronda *(was 12; runs last 1–9 min)*.
 - Implemented as a post-process colour grade on the pixel buffer after the engine draws (shadows towards
   deeper violet, lights towards orange), so the engine's colour constants stay untouched. Shadow length
   does not change.

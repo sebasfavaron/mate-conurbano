@@ -15,7 +15,7 @@ export function formatEnd(over, best) {
   return [
     `${pts(over.points ?? 0)} puntos`,
     `${over.score} ${over.score === 1 ? 'mate' : 'mates'} · la yerba aguantó ${over.minutes} min`,
-    { gracias: 'le cebaste al que dijo gracias', seco: 'se cansaron de los mates secos' }[over.reason] || 'se lavó',
+    { gracias: 'le cebaste al que dijo gracias', seco: 'se cansaron de los mates secos', gastada: 'la yerba dio todo lo que tenía' }[over.reason] || 'se lavó',
     `récord: ${pts(best)}`,
     'otra ronda',
   ];
@@ -25,27 +25,36 @@ export function formatEnd(over, best) {
 const RATING = {
   perfecto: ['¡Perfecto!', 'great'], 'muy bien': ['¡Muy bien!', 'great'], bien: ['Bien', 'ok'], zafa: ['Zafa', 'ok'],
   skip: ['¡Bien recordado!', 'great'],
+  justo: ['¡Justo!', 'ok'],
   sacado: ['¡Te lo sacaron!', 'bad'], corto: ['¡Te lo sacaron! · corto', 'bad'], seco: ['¡Te lo sacaron! · seco', 'bad'],
 };
 export function popupText(handoff) {
   const [title, kind] = RATING[handoff.rating] || ['', 'ok'];
-  const detail = [handoff.points > 0 ? `+${pts(handoff.points)}` : '+0', ...(handoff.tags || [])].join(' · ');
+  const score = handoff.points == null ? [] : [handoff.points > 0 ? `+${pts(handoff.points)}` : '+0'];
+  const detail = [...score, ...(handoff.tags || [])].join(' · ');
   return { title, detail, kind };
 }
 
 // One line on the end screen that says what to do differently next run.
 export function endHint(over, stats) {
   if (over.reason === 'gracias') return 'acordate de quién dijo gracias';
+  if (over.reason === 'gastada') return 'bien cebado: se gastó sola, sin lavarla';
   if (over.reason === 'seco') return 'cebá aunque sea a medias: tres mates secos seguidos y se van';
   if (stats.washSpill > stats.washTop) return `se rebalsó ${stats.spills === 1 ? 'una vez' : `${stats.spills} veces`}: soltá cuando aparece la espuma`;
   return 'el chorro lavó la montañita: inclinalo menos, que caiga al costado';
+}
+
+// The line people paste into a chat after a run.
+export function shareText(over) {
+  const how = { gracias: 'le cebé al que dijo gracias', seco: 'se cansaron de los mates secos', gastada: 'la yerba dio todo' }[over.reason] || 'se lavó la yerba';
+  return `🧉 Cebar Mate: ${pts(over.points ?? 0)} puntos · ${over.score} ${over.score === 1 ? 'mate' : 'mates'} en ${over.minutes} min (${how})`;
 }
 
 export function canRestart(sinceOver, pressedEdge) {
   return sinceOver >= T.RESTART_GUARD && pressedEdge;
 }
 
-export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestart }) {
+export function createUi({ store, audio, canvas, headScreen, sideHead, rigAnchor, onRestart }) {
   const $ = id => document.getElementById(id);
   const layer = $('bubbles'), status = $('status'), total = $('total'), matesEl = $('mates'), bestEl = $('best'), end = $('end');
   let shownPoints = 0;
@@ -56,21 +65,21 @@ export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestar
   const setStatus = text => { if (status.textContent !== text) status.textContent = text; };
   const showBest = () => { const b = store.get('bestPoints', 0); bestEl.textContent = b ? `récord ${pts(b)}` : ''; };
 
-  function say(seat, category, state, text) {
+  function say(seat, category, state, text, { look, anchor } = {}) {
     const warn = category === 'gracias';
-    if (seat == null || seat === 0 || !state.seats[seat]) return;
+    if (!anchor && (seat == null || seat === 0 || !state.seats[seat])) return;
     const line = text || pickLine(category, rng, lastLine[category]);
     lastLine[category] = line;
-    const occupant = state.seats[seat];
+    const occupant = state.seats[seat] || { look };
     const voice = occupant.look === 5 ? T.DRIVER_VOICE : T.FRIEND_VOICES[occupant.look] || T.FRIEND_VOICES[0];
     const silent = state.truck.active && seat !== 6; // the loudspeaker drowns every voice but the driver's
     const times = audio.say(line, voice, { silent });
-    bubbles = bubbles.filter(b => { if (b.seat === seat) { b.el.remove(); return false; } return true; });
+    bubbles = bubbles.filter(b => { if (b.seat === seat && !b.anchor) { b.el.remove(); return false; } return true; });
     const el = document.createElement('div');
     el.className = warn ? 'bubble warn' : 'bubble';
     layer.append(el);
     const until = clock + Math.max(T.BUBBLE_TIME, (times.at(-1) || 0) + .9);
-    bubbles.push({ seat, el, line, times, start: clock, until });
+    bubbles.push({ seat, el, line, times, start: clock, until, anchor });
     setStatus(line);
   }
 
@@ -160,7 +169,8 @@ export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestar
             if (e.grabbed && state.turn.fill < .02) say(e.seat, 'grabEmpty', state);
             else if (e.grabbed && !e.good && !teased) say(e.seat, 'grab', state);
             break;
-          case 'skip': say(e.seat, 'skip', state); popup({ rating: 'skip', points: e.points, tags: ['lo pasaste'] }); break;
+          case 'skip': say(e.seat, 'skip', state); popup({ rating: 'skip', tags: ['lo pasaste'] }); break;
+          case 'leave': say(e.seat, 'leave', state, null, { look: e.look, anchor: () => sideHead(e.look, state) }); teach('side'); break;
           case 'guestArrive': say(6, 'guestAsk', state); break;
           case 'guestSignal': teach('guest'); break;
           case 'truckEnter': teach('truck'); break;
@@ -183,6 +193,17 @@ export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestar
             end.firstElementChild.innerHTML = lines.slice(0, 5).map((l, i) => `<p class="${i ? 'muted' : ''}">${l}</p>`).join('')
               + `<button type="button" id="again">${lines[5]}</button>`;
             end.querySelector('#again').addEventListener('click', () => onRestart?.(true));
+            const share = document.createElement('button');
+            share.type = 'button'; share.className = 'quiet'; share.textContent = 'compartir';
+            share.addEventListener('click', async () => {
+              const text = shareText(e);
+              const url = /^https?:/.test(location.href) && !/127\.0\.0\.1|localhost/.test(location.host) ? location.href.split('#')[0] : undefined;
+              try {
+                if (navigator.share) await navigator.share({ text, url });
+                else { await navigator.clipboard.writeText(url ? `${text}\n${url}` : text); share.textContent = '¡copiado!'; }
+              } catch { /* closed the share sheet */ }
+            });
+            end.firstElementChild.append(' ', share);
             end.hidden = false;
             break;
           }
@@ -201,7 +222,7 @@ export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestar
       if (state.phase === 'pour' && state.turn.fill >= T.FILL_OK && !state.turn.trap) teach('foam');
       const rect = canvas.getBoundingClientRect();
       bubbles = bubbles.filter(b => {
-        if (clock > b.until || !state.seats[b.seat]) { b.el.remove(); return false; }
+        if (clock > b.until || (!b.anchor && !state.seats[b.seat])) { b.el.remove(); return false; }
         const since = clock - b.start, n = b.times.filter(t => t <= since).length;
         const text = b.line.slice(0, Math.max(1, n));
         if (b.el.textContent !== text) b.el.textContent = text;
@@ -210,7 +231,7 @@ export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestar
       // place bubbles above their heads; a later one that would overlap an earlier one moves up
       const placed = [];
       for (const b of bubbles) {
-        const head = headScreen(b.seat, state), pos = bubblePosition(head.sx, head.sy, rect);
+        const head = b.anchor ? b.anchor() : headScreen(b.seat, state), pos = bubblePosition(head.sx, head.sy, rect);
         const w = b.el.offsetWidth, h = b.el.offsetHeight + 4;
         let top = pos.top;
         for (const o of placed) {

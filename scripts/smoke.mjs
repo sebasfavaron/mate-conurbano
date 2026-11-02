@@ -23,7 +23,7 @@ try {
   page.on('console', m => { if (m.type() === 'error') errors.push(m.text()); });
   // the screenshots drive the game directly, so skip the first-time lesson cards
   await page.addInitScript(() => localStorage.setItem('cebar-mate:learned', JSON.stringify(Object.fromEntries(
-    ['start', 'gauge', 'foam', 'ronda', 'points', 'tease', 'grab', 'wash', 'spill', 'gracias', 'truck', 'guest'].map(k => [k, true])))));
+    ['start', 'gauge', 'foam', 'ronda', 'points', 'tease', 'grab', 'wash', 'spill', 'gracias', 'truck', 'guest', 'side'].map(k => [k, true])))));
   await page.goto(URL);
   await page.waitForFunction(() => window.__mate && window.__mate.drawn > 2, null, { timeout: 8000 }).catch(e => { console.error(errors.join('\n')); throw e; });
   const canvas = page.locator('#c');

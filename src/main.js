@@ -1,7 +1,7 @@
 // Boot and frame loop: input → sim → (scene, ui, audio).
 import { createRun, step } from './sim.js';
 import { bindInput } from './input.js';
-import { bakeScene, drawScene, sceneEvents, resetScene, headScreen, rigAnchor } from './scene.js';
+import { bakeScene, drawScene, sceneEvents, resetScene, headScreen, sideHead, rigAnchor } from './scene.js';
 import { createAudio } from './audio.js';
 import { createUi, canRestart } from './ui.js';
 import { createStore } from './store.js';
@@ -18,7 +18,7 @@ let lessonFor = 0, swallow = false, lessonClicked = false;
 const ambience = createAmbience();
 let ambientEvents = [];
 
-const ui = createUi({ store, audio, canvas, headScreen, rigAnchor, onRestart: () => restart() });
+const ui = createUi({ store, audio, canvas, headScreen, sideHead, rigAnchor, onRestart: () => restart() });
 ui.intro();
 
 function dispatch(events) {

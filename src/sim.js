@@ -32,7 +32,7 @@ export function createRun({ seed = 1, skipTutorial = false } = {}) {
     truck: { active: false, progress: 0, speed: 0, nextAt: 0, guestPass: false, stopped: false, signalled: false, slowTime: 0 },
     guest: { planned: false, done: false },
     lastLavadoAt: -Infinity, tipShown: false, tips: {}, arrivals: 0, over: null, rng,
-    stats: { washTop: 0, washSpill: 0, spills: 0, shortGrabs: 0 }, secos: 0, points: 0, combo: 0,
+    stats: { washTop: 0, washSpill: 0, spills: 0, shortGrabs: 0 }, secos: 0, points: 0, combo: 0, side: [],
   };
   state.guest.planned = nextRandom(rng) < T.P_GUEST;
   state.truck.nextAt = randomBetween(rng, T.TRUCK_FIRST_MIN, T.TRUCK_FIRST_MAX);
@@ -80,8 +80,16 @@ function pourTick(s, h, tilt, aim, events) {
     if (flow > 0) return gameOver(s, 'gracias', events, t.seat);
     t.stillTime += h;
     if (t.stillTime >= T.SKIP_DELAY - EPS) {
-      s.points += T.PTS_SKIP;   // remembering who said gracias is worth a little, and keeps the streak
-      events.push({ type: 'skip', seat: t.seat, points: T.PTS_SKIP });
+      events.push({ type: 'skip', seat: t.seat });
+      // after a couple of laps without drinking, a friend who said gracias gets up to play 'que no caiga'
+      const who = s.seats[t.seat];
+      who.skips = (who.skips || 0) + 1;
+      if (who.skips >= T.LEAVE_AFTER_SKIPS) {
+        s.seats[t.seat] = null;
+        s.side.push({ look: who.look, seat: t.seat });
+        if (s.side.length > T.SIDE_SPOTS) s.side.shift();
+        events.push({ type: 'leave', seat: t.seat, look: who.look });
+      }
       startTurn(s, nextSeat(s), events);
     }
     return;
@@ -144,14 +152,14 @@ export function pourScore({ fill, overflow = 0, washedTop = 0, teased = false, g
   pts += T.PTS_CLEAN * clean;
   if (clean > .9) tags.push('limpio');
   if (!teased && !grabbed) { pts += T.PTS_QUICK; tags.push('rápido'); }
-  const keep = !grabbed && overflow === 0 && clean > .5;   // a clean, unhurried, unspilled mate keeps the streak
+  const keep = overflow === 0 && clean > .5;   // a clean, unspilled mate keeps the streak, even if they took it
   const nextCombo = keep ? Math.min(combo + 1, T.PTS_COMBO_MAX) : 0;
   let mult = keep ? 1 + T.PTS_COMBO_STEP * combo : 1;
   if (keep && combo > 0) tags.push(`racha x${mult.toFixed(1).replace('.', ',')}`);
   if (grabbed) mult *= T.PTS_GRAB_MULT;
   if (guest) { mult *= T.GUEST_VALUE; tags.push('x2 camionero'); }
   const points = Math.round(pts * mult / 5) * 5;
-  const rating = grabbed ? 'sacado' : points >= 240 ? 'perfecto' : points >= 170 ? 'muy bien' : points >= 110 ? 'bien' : 'zafa';
+  const rating = grabbed ? 'justo' : points >= 240 ? 'perfecto' : points >= 170 ? 'muy bien' : points >= 110 ? 'bien' : 'zafa';
   return { points, combo: nextCombo, rating, tags };
 }
 
@@ -208,11 +216,11 @@ function handOff(s, events, grabbed) {
     if (s.secos >= T.SECO_LIMIT) return gameOver(s, 'seco', events);
     if (s.secos === T.SECO_LIMIT - 1) tip(s, events, 'seco');
   } else if (good) s.secos = 0;
-  if (s.served % T.ARRIVE_EVERY === 0 && s.arrivals < T.ARRIVE_ORDER.length) {
-    const seat = T.ARRIVE_ORDER[s.arrivals];
-    s.seats[seat] = { look: 2 + s.arrivals, saidGracias: false, guest: false };
+  const chair = s.served % T.ARRIVE_EVERY === 0 ? freeChair(s) : null;
+  if (chair != null) {
+    s.seats[chair] = { look: freeLook(s), saidGracias: false, guest: false };
     s.arrivals += 1;
-    events.push({ type: 'arrive', seat });
+    events.push({ type: 'arrive', seat: chair });
   }
   if (s.served === T.SHIFT_TIP_MATE) showTip(s, events);
   setPhase(s, 'out');
@@ -293,7 +301,20 @@ function setPhase(s, phase) {
   s.phaseTime = 0;
 }
 
+// The next chair a newcomer takes: the planned order first, then any chair a gracias friend left.
+function freeChair(s) {
+  for (const seat of [...T.ARRIVE_ORDER, 1, 2, 3, 4, 5]) if (!s.seats[seat]) return seat;
+  return null;
+}
+// A look nobody at the table or on the side is wearing (the starting two take 0 and 1).
+function freeLook(s) {
+  const used = new Set([...s.seats.filter(Boolean).map(x => x.look), ...s.side.map(x => x.look)]);
+  return T.FRIEND_LOOKS.find(l => !used.has(l)) ?? T.FRIEND_LOOKS[s.arrivals % T.FRIEND_LOOKS.length];
+}
+
 function gameOver(s, reason, events, seat) {
+  // washing out through careful use is not a failure: the yerba simply gave all it had
+  if (reason === 'lavado' && s.stats.washTop + s.stats.washSpill < T.NATURAL_WASH) reason = 'gastada';
   const minutes = Math.floor(s.rondaTime / 60);
   s.over = { reason, score: s.score, points: s.points, minutes };
   s.phase = 'over';

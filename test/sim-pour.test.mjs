@@ -46,7 +46,7 @@ test('wetTop rises with water on top and dries at .05/s', () => {
 test('yerba at 0 ends the run', () => {
   const s = createRun({ seed: 1 }); s.yerba = .001;
   const g = find(pourFor(s, .5, 1), 'gameOver');
-  assert.equal(g.reason, 'lavado'); assert.equal(s.phase, 'over');
+  assert.equal(g.reason, 'gastada'); assert.equal(s.phase, 'over'); // worn out, barely washed: a natural end
   assert.deepEqual(step(s, .1, 1).events, []);
 });
 test('big dt equals many small steps', () => {
@@ -59,4 +59,8 @@ test('a second overflow after stopping is a new spill', () => {
   const s = createRun({ seed: 1 }); s.turn.fill = .99;
   const ev = [...pourFor(s, .2, .5), ...pourFor(s, .05, 0), ...pourFor(s, .2, .5)];
   assert.equal(ev.filter(e => e.type === 'spill').length, 2);
+});
+test('a run that washed the yerba ends as lavado', () => {
+  const s = createRun({ seed: 1 }); s.yerba = .001; s.stats.washTop = .5;
+  assert.equal(find(pourFor(s, .5, 1), 'gameOver').reason, 'lavado');
 });

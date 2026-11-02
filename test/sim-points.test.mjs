@@ -15,9 +15,9 @@ test('a spill costs and breaks the streak', () => {
   const r = pourScore({ fill: 1, overflow: .05, combo: 4 });
   assert.equal(r.points, 140); assert.ok(r.tags.includes('rebalsado')); assert.equal(r.combo, 0);
 });
-test('a grab halves a full mate and scores nothing for a short one', () => {
+test('a grab of a full mate keeps most of it; a short one scores nothing', () => {
   const full = pourScore({ fill: .9, grabbed: true, teased: true });
-  assert.equal(full.rating, 'sacado'); assert.equal(full.points, 75);
+  assert.equal(full.rating, 'justo'); assert.equal(full.points, 120); assert.equal(full.combo, 1);
   assert.deepEqual([pourScore({ fill: .5, grabbed: true }).points, pourScore({ fill: .5, grabbed: true }).rating], [0, 'corto']);
   assert.equal(pourScore({ fill: .1, grabbed: true }).rating, 'seco');
 });

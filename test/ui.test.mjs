@@ -27,3 +27,11 @@ test('popupText names the result and the bonuses, and flags an early grab', () =
   assert.deepEqual(popupText({ rating: 'sacado', points: 75, tags: ['limpio'] }), { title: '¡Te lo sacaron!', detail: '+75 · limpio', kind: 'bad' });
   assert.equal(popupText({ rating: 'seco', points: 0, tags: [] }).title, '¡Te lo sacaron! · seco');
 });
+import { shareText } from '../src/ui.js';
+test('gentler ending, praise without points, and the share line', () => {
+  assert.equal(formatEnd({ reason: 'gastada', score: 50, points: 15600, minutes: 8 }, 15600)[2], 'la yerba dio todo lo que tenía');
+  assert.match(endHint({ reason: 'gastada' }, {}), /bien cebado/);
+  assert.deepEqual(popupText({ rating: 'skip', tags: ['lo pasaste'] }), { title: '¡Bien recordado!', detail: 'lo pasaste', kind: 'great' });
+  assert.equal(popupText({ rating: 'justo', points: 120, tags: [] }).kind, 'ok');
+  assert.equal(shareText({ reason: 'lavado', score: 14, points: 2340, minutes: 9 }), '🧉 Cebar Mate: 2.340 puntos · 14 mates en 9 min (se lavó la yerba)');
+});
