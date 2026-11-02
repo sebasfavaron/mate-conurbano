@@ -51,11 +51,11 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
       const top = state.topFrac || 0;
       const hz = resonanceHz(fill, params.RES_F_EMPTY);
       pour.streamGain.gain.setTargetAtTime(.22 * flow, now, SMOOTH);
-      pour.streamBP.frequency.setTargetAtTime(1400 + 1600 * flow, now, SMOOTH);
+      pour.streamBP.frequency.setTargetAtTime(650 + 900 * flow, now, SMOOTH);
       pour.res.frequency.setTargetAtTime(hz, now, SMOOTH);
       pour.res2.frequency.setTargetAtTime(hz * 2.02, now, SMOOTH);
       pour.resGain.gain.setTargetAtTime(1.6 * flow * (1 - .55 * top), now, SMOOTH);
-      pour.surface.frequency.setTargetAtTime(6500 - 5600 * top, now, SMOOTH);
+      pour.surface.frequency.setTargetAtTime(3800 - 3000 * top, now, SMOOTH);
       chirpAcc += dt * CHIRP_RATE * flow * (1 - top);
       while (chirpAcc >= 1) { chirpAcc -= 1; chirp(hz); }
 
@@ -98,15 +98,15 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
     slurp() {
       if (!ctx) return;
       const t = ctx.currentTime, src = ctx.createBufferSource(), bp = ctx.createBiquadFilter(), g = ctx.createGain();
-      src.buffer = noise; bp.type = 'bandpass'; bp.Q.value = 6;
-      bp.frequency.setValueAtTime(1800, t);
-      bp.frequency.exponentialRampToValueAtTime(400, t + .5);
+      src.buffer = noise; bp.type = 'bandpass'; bp.Q.value = 4;
+      bp.frequency.setValueAtTime(1000, t);
+      bp.frequency.exponentialRampToValueAtTime(180, t + .6);
       g.gain.setValueAtTime(0, t);
       g.gain.linearRampToValueAtTime(.9, t + .04);
       for (let i = 1; i <= 5; i++) g.gain.linearRampToValueAtTime(i % 2 ? .35 : .8, t + .04 + i * .08); // the gurgle
-      g.gain.linearRampToValueAtTime(0, t + .5);
+      g.gain.linearRampToValueAtTime(0, t + .6);
       src.connect(bp).connect(g).connect(master);
-      src.start(t, Math.random()); src.stop(t + .55);
+      src.start(t, Math.random()); src.stop(t + .65);
     },
 
     splash() {
@@ -141,12 +141,12 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
   function buildPour() {
     const src = ctx.createBufferSource();
     src.buffer = noise; src.loop = true;
-    const streamBP = ctx.createBiquadFilter(); streamBP.type = 'bandpass'; streamBP.Q.value = .7; streamBP.frequency.value = 2000;
+    const streamBP = ctx.createBiquadFilter(); streamBP.type = 'bandpass'; streamBP.Q.value = .9; streamBP.frequency.value = 1000;
     const streamGain = ctx.createGain(); streamGain.gain.value = 0;
     const res = ctx.createBiquadFilter(); res.type = 'bandpass'; res.Q.value = 8;
     const res2 = ctx.createBiquadFilter(); res2.type = 'bandpass'; res2.Q.value = 10;
     const resGain = ctx.createGain(); resGain.gain.value = 0;
-    const surface = ctx.createBiquadFilter(); surface.type = 'lowpass'; surface.frequency.value = 6500;
+    const surface = ctx.createBiquadFilter(); surface.type = 'lowpass'; surface.frequency.value = 3800;
     const out = ctx.createGain(); out.gain.value = .9;
     src.connect(streamBP).connect(streamGain).connect(surface);
     src.connect(res).connect(resGain);
@@ -158,11 +158,11 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
   }
 
   function chirp(base, at = ctx.currentTime) {
-    const f = base * (1.4 + Math.random() * 1.2);
+    const f = base * (1.1 + Math.random() * .7);
     const o = ctx.createOscillator(), g = ctx.createGain();
     o.type = 'sine';
     o.frequency.setValueAtTime(f, at);
-    o.frequency.linearRampToValueAtTime(f + 300, at + .03);
+    o.frequency.linearRampToValueAtTime(f + 180, at + .03);
     g.gain.setValueAtTime(.05 + Math.random() * .04, at);
     g.gain.exponentialRampToValueAtTime(.001, at + .04);
     o.connect(g).connect(pour.surface);

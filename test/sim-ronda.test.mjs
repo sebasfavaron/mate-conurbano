@@ -34,12 +34,13 @@ test('phase timings', () => {
   for (const mark of [.59, .61, 3.59, 3.61, 4.19, 4.21]) { while (t < mark - 1e-9) { step(s, .01, 0); t += .01; } at.push(s.phase); }
   assert.deepEqual(at, ['out', 'drink', 'drink', 'back', 'back', 'pour']);
 });
-test('teases at 50 % and 83 % then grab', () => {
+test('one tease per turn at 83 %, then grab', () => {
   const s = afterTutorial();
-  near(firstAt(s, 'tease'), 3.0); near(firstAt(s, 'tease'), 4.98);
-  const ev = pourFor(s, 1.1, 0), h = find(ev, 'handoff');
+  near(firstAt(s, 'tease'), 4.98);
+  const ev = until(s, 0, (st, e) => e.some(x => x.type === 'handoff')), h = find(ev, 'handoff');
+  assert.ok(!types(ev).includes('tease'));
   assert.deepEqual([h.grabbed, h.good, h.value], [true, false, 0]);
-  near(s.time - 3.6 - 3.6, 6.0, 1.2); // sanity: the turn lasted about the patience window
+  near(s.turn.waited, 6.0);
 });
 test('grab happens exactly at the patience window', () => {
   const s = afterTutorial(); const start = s.time;
@@ -116,4 +117,9 @@ test('the hand-off that washes the last yerba announces no arrival', () => {
   const s = afterTutorial(); s.served = 4; s.yerba = .015;
   const ev = serve(s);
   assert.equal(find(ev, 'gameOver').reason, 'lavado'); assert.ok(!types(ev).includes('arrive'));
+});
+test('a slightly brave early pour beats the tease', () => {
+  const s = afterTutorial(); let start = 0;
+  const ev = until(s, st => (st.phaseTime > .4 && st.turn.fill < .86 ? .6 : 0), (st, e) => e.some(x => x.type === 'handoff'));
+  assert.ok(!types(ev).includes('tease')); assert.equal(find(ev, 'handoff').good, true);
 });

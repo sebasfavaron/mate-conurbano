@@ -28,7 +28,7 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
   const layer = $('bubbles'), status = $('status'), total = $('total'), bestEl = $('best'), end = $('end');
   const rng = makeRng(Date.now() >>> 0);
   const lastLine = {};
-  let bubbles = [], clock = 0, tutorialPourShown = false;
+  let bubbles = [], clock = 0, tutorialPourShown = false, teased = false;
 
   const setStatus = text => { if (status.textContent !== text) status.textContent = text; };
   const showBest = () => { const b = store.get('best', 0); bestEl.textContent = b ? ` récord ${b}` : ''; };
@@ -72,10 +72,17 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
             if (state.tutorial && !tutorialPourShown) { tutorialPourShown = true; setStatus(LINES.tutorial.pouring); }
             break;
           case 'tutorialDone': setStatus(LINES.tutorial.first); break;
-          case 'tease': say(e.seat, 'impatient', state); break;
+          case 'turn': teased = false; break;
+          case 'tease': if (!teased) { teased = true; say(e.seat, 'impatient', state); } break;
           case 'spill': say(e.seat, 'spill', state); break;
           case 'lavado': say(e.seat, 'lavado', state); break;
           case 'arrive': say(e.seat, 'arrive', state); break;
+          case 'handoff':
+            // an empty grab always gets its own line; a half-full one only if nobody teased this turn
+            if (e.grabbed && state.turn.fill < .02) say(e.seat, 'grabEmpty', state);
+            else if (e.grabbed && !e.good && !teased) say(e.seat, 'grab', state);
+            break;
+          case 'skip': say(e.seat, 'skip', state); break;
           case 'guestArrive': say(6, 'guestAsk', state); break;
           case 'gracias':
             if (e.seat === 6) { say(6, 'guestThanks', state); break; }
@@ -105,14 +112,24 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
       const rect = canvas.getBoundingClientRect();
       bubbles = bubbles.filter(b => {
         if (clock > b.until || !state.seats[b.seat]) { b.el.remove(); return false; }
-        const head = headScreen(b.seat, state), pos = bubblePosition(head.sx, head.sy, rect);
-        b.el.style.left = pos.left + 'px';
-        b.el.style.top = pos.top + 'px';
         const since = clock - b.start, n = b.times.filter(t => t <= since).length;
         const text = b.line.slice(0, Math.max(1, n));
         if (b.el.textContent !== text) b.el.textContent = text;
         return true;
       });
+      // place bubbles above their heads; a later one that would overlap an earlier one moves up
+      const placed = [];
+      for (const b of bubbles) {
+        const head = headScreen(b.seat, state), pos = bubblePosition(head.sx, head.sy, rect);
+        const w = b.el.offsetWidth, h = b.el.offsetHeight + 4;
+        let top = pos.top;
+        for (const o of placed) {
+          if (Math.abs(o.left - pos.left) < (o.w + w) / 2 && top > o.top - h && top < o.top + o.h) top = o.top - h;
+        }
+        placed.push({ left: pos.left, top, w, h });
+        b.el.style.left = pos.left + 'px';
+        b.el.style.top = top + 'px';
+      }
     },
 
     reset() {

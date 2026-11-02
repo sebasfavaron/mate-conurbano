@@ -5,9 +5,10 @@ import { makeRng } from '../src/rng.js';
 
 const near = (a, b, tol = 1e-9) => assert.ok(Math.abs(a - b) <= tol, `${a} not within ${tol} of ${b}`);
 test('resonance rises toward the brim', () => {
-  assert.equal(resonanceHz(0), 260); near(resonanceHz(.75), 520);
+  const f0 = T.RES_F_EMPTY;
+  assert.equal(resonanceHz(0), f0); near(resonanceHz(.75), 2 * f0);
   let last = 0; for (let f = 0; f <= 1.0001; f += .01) { const hz = resonanceHz(f); assert.ok(hz >= last); last = hz; }
-  near(resonanceHz(1), 1300); near(resonanceHz(1.05), 1300);
+  near(resonanceHz(1), f0 / .2); near(resonanceHz(1.05), f0 / .2);
 });
 test('truck is centred, loudest and brightest at .5', () => {
   const m = truckMix(.5); near(m.pan, 0); near(m.gain, 1); near(m.cutoff, 8000);

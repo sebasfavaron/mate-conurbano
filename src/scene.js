@@ -1,5 +1,6 @@
 // Bake and draw the patio through the engine's globals (engine.js is a classic script loaded first).
 import { T } from './tuning.js';
+import { patienceWindow } from './sim.js';
 
 /* ---------- layout (world units, table at the origin) ---------- */
 const ISLAND_X = 10, ISLAND_Y = 6.8, ISLAND_FAR = 9.4;
@@ -272,9 +273,9 @@ export function seatedFigure(px, py, yaw, pose, look, addBone) {
 
 /* ---------- gestures fed by sim events ---------- */
 const WALK_TIME = 2, PALM_TIME = 1.2;
-const fx = { palm: [], tease: [], arrive: [], offended: -1 };
+const fx = { palm: [], arrive: [], offended: -1 };
 export function resetScene() {
-  fx.palm = []; fx.tease = []; fx.arrive = []; fx.offended = -1;
+  fx.palm = []; fx.arrive = []; fx.offended = -1;
   truckFx.signalAt = truckFx.stopAt = truckFx.leaveAt = -99;
   dust.length = 0;
 }
@@ -282,8 +283,7 @@ export function sceneEvents(events, state) {
   truckEvents(events, state);
   for (const e of events) {
     if (e.type === 'gracias') fx.palm[e.seat] = state.time;
-    else if (e.type === 'tease') fx.tease[e.seat] = state.time;
-    else if (e.type === 'turn' || e.type === 'handoff') fx.tease = [];
+    else if (e.type === 'skip') fx.palm[e.seat] = state.time;
     else if (e.type === 'arrive') fx.arrive[e.seat] = state.time;
     else if (e.type === 'gameOver' && e.reason === 'gracias') fx.offended = e.seat;
   }
@@ -329,7 +329,13 @@ function drawPeople(state, t) {
     else if (isHolder && state.phase === 'drink') pose.drinking = true;
     else if (isHolder && state.phase === 'out') pose.reach = 1 - ease(clamp(p / T.PASS_TIME, 0, 1)) * .4;
     else if (isHolder && state.phase === 'back') pose.reach = .6 + ease(clamp(p / T.PASS_TIME, 0, 1)) * .4;
-    else if (i === holder && state.phase === 'pour' && fx.tease[i] != null) Object.assign(pose, { lean: .28, reach: .8 });
+    else if (i === holder && state.phase === 'pour' && !state.tutorial) {
+      // the friend the mate is for leans in, hand out, further as their patience runs out.
+      // Trap turns look the same, so nothing gives away who said gracias.
+      const waited = state.turn.trap ? state.phaseTime : state.turn.waited;
+      const p = clamp(waited / patienceWindow(state), 0, 1);
+      Object.assign(pose, { lean: .1 + .28 * p, reach: .3 + .7 * p });
+    }
     else pose.lean = STILL ? 0 : Math.sin(t * 1.6 + i) * .015;
     let handR;
     if (i === 6) {
@@ -361,7 +367,7 @@ const C = {
   rim: rampOf([200, 196, 184]), skin: rampOf([224, 172, 134]), sleeve: rampOf([70, 98, 82]),
   yerba: [98, 142, 58], yerbaWet: [52, 86, 40], yerbaPale: [176, 178, 128], hole: rgb(40, 36, 28),
   water: rgb(132, 186, 222), waterDeep: rgb(92, 150, 196), shine: rgb(236, 248, 255), stream: rgb(156, 206, 238),
-  palito: rgb(214, 204, 150), bombilla: rampOf([200, 204, 214]),
+  palito: rgb(214, 204, 150), bombilla: rampOf([200, 204, 214]), foam: rgb(222, 230, 186), foamDark: rgb(176, 196, 140),
 };
 const rigFx = { tilt: 0, t: 0, drops: [] };
 
@@ -462,6 +468,11 @@ function drawRigGourd(fill, yerba, wetTop, overflow, glow) {
     const ix = x | 0, iy = y | 0;
     const du = (u - hole[0]) / 1.2, dv = v - hole[1] + water * .18, hd = Math.hypot(du, dv);
     if (water > 0 && (hd < wr || (water >= .999 && v > moundEdge(u, height)))) {
+      if (water >= T.FILL_OK && hd < wr * .78) {
+        // a full mate foams on top: the cue that it is ready to hand over
+        const f = hash(ix * 5, iy * 7);
+        if (f > .25) return f > .7 ? C.foamDark : C.foam;
+      }
       if (Math.abs(du + .12) < .12 && Math.abs(dv + wr * .55) < .08) return C.shine;
       return hd > wr * .7 ? C.waterDeep : C.water;
     }

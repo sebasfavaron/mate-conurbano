@@ -14,6 +14,9 @@ export const LINES = {
   arrive: ['¿Hay lugar para uno más?', 'Traje bizcochitos, eh'],
   gracias: ['Gracias', 'Gracias, estoy bien', 'Ya estoy, gracias'],
   bomb: ['Te dije gracias, ¿eh?', '¿No escuchás o qué?'],
+  grabEmpty: ['Che, ¡está seco!', '¿Y el agua, maestro?', '¿Mate de yerba sola? Innovador'],
+  grab: ['Dame que se enfría', 'Así nomás, traé', '¿Medio mate? Bueno, peor es nada'],
+  skip: ['Ya estoy, pasalo', 'No, pasá nomás'],
   guestAsk: ['Una mano, maestro, ¿me convidás uno?'],
   guestThanks: ['Gracias, jefe'],
   tutorial: {
