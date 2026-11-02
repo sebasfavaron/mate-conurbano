@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Cebar Mate</title>
+<style>
+  :root { --ink: #1c1b19; --muted: #8b877f; --paper: #fff; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--paper); color: var(--ink); }
+  body { font: 13px/1.35 ui-monospace, "Cascadia Mono", Consolas, Menlo, monospace; overflow: hidden; }
+  #stage { position: fixed; inset: 0; display: grid; place-items: center; }
+  canvas { display: block; image-rendering: pixelated; touch-action: none; cursor: grab; outline: none; }
+  canvas:active { cursor: grabbing; }
+  .hud { position: fixed; left: max(16px, env(safe-area-inset-left)); right: max(16px, env(safe-area-inset-right)); display: flex; justify-content: space-between; gap: 16px; pointer-events: none; }
+  #scores { position: fixed; top: max(14px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); display: grid; gap: 2px; pointer-events: none; }
+  #scores b { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  #scores span { color: var(--muted); }
+  #bottom { bottom: max(14px, env(safe-area-inset-bottom)); align-items: flex-end; }
+  #status { color: var(--muted); max-width: 70ch; }
+  button { pointer-events: auto; font: inherit; color: var(--muted); background: none; border: 0; padding: 10px; margin: -10px; cursor: pointer; }
+  button:hover, button:focus-visible { color: var(--ink); }
+  #rules-open { position: fixed; top: max(14px, env(safe-area-inset-top)); right: max(16px, env(safe-area-inset-right)); }
+  #bubbles { position: fixed; inset: 0; pointer-events: none; }
+  .bubble { position: absolute; transform: translate(-50%, -100%); background: var(--paper); color: var(--ink); border: 1px solid var(--ink);
+    padding: 3px 6px; white-space: nowrap; font-size: 12px; margin-top: -6px; }
+  .bubble::after { content: ''; position: absolute; left: 50%; bottom: -5px; width: 7px; height: 7px; background: var(--paper);
+    border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); transform: translateX(-50%) rotate(45deg); }
+  #end { position: fixed; inset: 0; display: grid; place-items: center; pointer-events: none; }
+  #end[hidden] { display: none; }
+  #end div { background: var(--paper); padding: 14px 22px; text-align: center; line-height: 1.6; pointer-events: auto; }
+  #end p { margin: 0; }
+  #end p:first-child { font-size: 18px; font-weight: 600; }
+  #end p.muted { color: var(--muted); }
+  #end button { margin: 8px 0 0; padding: 4px 10px; border: 1px solid var(--ink); color: var(--ink); }
+  dialog { border: 1px solid var(--ink); padding: 18px 22px; max-width: min(460px, calc(100vw - 32px)); font: inherit; color: var(--ink); }
+  dialog::backdrop { background: rgba(255, 255, 255, .7); }
+  dialog ol { padding-left: 20px; margin: 0 0 12px; line-height: 1.5; }
+  dialog li { margin: 0 0 6px; }
+  dialog button { margin: 0; padding: 4px 10px; border: 1px solid var(--ink); color: var(--ink); }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c" tabindex="0" aria-label="Patio del conurbano con una mesa de plástico. Mantené espacio, arrastrá hacia abajo o apretá el gatillo para inclinar el termo y cebar el mate. Con Shift inclinás más despacio."></canvas></div>
+<div id="scores"><b id="total">0</b><span id="best"></span></div>
+<button id="rules-open" type="button" aria-haspopup="dialog" aria-label="reglas">?</button>
+<div id="bubbles" aria-hidden="true"></div>
+<div id="end" hidden><div></div></div>
+<div class="hud" id="bottom">
+  <div id="status" role="status" aria-live="polite"></div>
+  <button id="mute" type="button" aria-pressed="false">sonido: sí</button>
+</div>
+<dialog id="rules">
+  <ol></ol>
+  <form method="dialog"><button>listo</button></form>
+</dialog>
+<script>window.PP_SCENE = { originY: -10, shadowX: 1.1, shadowY: -.2 };</script>
+<script src="engine.js"></script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
