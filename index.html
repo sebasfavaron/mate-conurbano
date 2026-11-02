@@ -16,6 +16,18 @@
   #scores { position: fixed; top: max(14px, env(safe-area-inset-top)); left: max(16px, env(safe-area-inset-left)); display: grid; gap: 2px; pointer-events: none; }
   #scores b { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
   #scores span { color: var(--muted); }
+  #scores b { display: inline-block; transform-origin: left center; }
+  #scores b.bump { animation: bump .35s ease-out; }
+  @keyframes bump { 30% { transform: scale(1.25); } }
+  .pop { position: fixed; transform: translate(-50%, -100%); text-align: center; white-space: nowrap; pointer-events: none;
+    animation: pop 2.1s ease-out forwards; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 6px #fff; }
+  .pop b { display: block; font-size: 16px; }
+  .pop span { font-size: 12px; color: var(--muted); }
+  .pop.great b { color: #2f7d32; } .pop.ok b { color: var(--ink); } .pop.bad b { color: #b3261e; }
+  @keyframes pop { 0% { opacity: 0; transform: translate(-50%, -70%); } 12% { opacity: 1; transform: translate(-50%, -100%); }
+    70% { opacity: 1; } 100% { opacity: 0; transform: translate(-50%, -170%); } }
+  @media (prefers-reduced-motion: reduce) { .pop { animation: popStill 2.1s forwards; } #scores b.bump { animation: none; }
+    @keyframes popStill { 0%, 80% { opacity: 1; } 100% { opacity: 0; } } }
   #bottom { bottom: max(14px, env(safe-area-inset-bottom)); align-items: flex-end; }
   #status { color: var(--muted); max-width: 70ch; }
   .buttons { display: flex; gap: 24px; white-space: nowrap; }
@@ -52,7 +64,7 @@
 </head>
 <body>
 <div id="stage"><canvas id="c" tabindex="0" aria-label="Patio del conurbano con una mesa de plástico. Mantené espacio, arrastrá hacia abajo o apretá el gatillo para inclinar el termo y cebar el mate. Con Shift inclinás más despacio."></canvas></div>
-<div id="scores"><b id="total">0</b><span id="best"></span></div>
+<div id="scores"><b id="total">0</b><span id="mates">0 mates</span><span id="best"></span></div>
 <button id="rules-open" type="button" aria-haspopup="dialog" aria-label="reglas">?</button>
 <div id="bubbles" aria-hidden="true"></div>
 <div id="end" hidden><div></div></div>

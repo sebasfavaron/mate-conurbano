@@ -9,14 +9,27 @@ export function bubblePosition(sx, sy, rect, w = CW, h = CH) {
   return { left: rect.left + sx * rect.width / w, top: rect.top + sy * rect.height / h };
 }
 
+export const pts = n => Math.round(n).toLocaleString('es-AR');
+
 export function formatEnd(over, best) {
   return [
-    `${over.score} ${over.score === 1 ? 'mate' : 'mates'}`,
-    `la yerba aguantó ${over.minutes} min`,
+    `${pts(over.points ?? 0)} puntos`,
+    `${over.score} ${over.score === 1 ? 'mate' : 'mates'} · la yerba aguantó ${over.minutes} min`,
     { gracias: 'le cebaste al que dijo gracias', seco: 'se cansaron de los mates secos' }[over.reason] || 'se lavó',
-    `récord: ${best}`,
+    `récord: ${pts(best)}`,
     'otra ronda',
   ];
+}
+
+// What the popup over the gourd says after each hand-off.
+const RATING = {
+  perfecto: ['¡Perfecto!', 'great'], 'muy bien': ['¡Muy bien!', 'great'], bien: ['Bien', 'ok'], zafa: ['Zafa', 'ok'],
+  sacado: ['¡Te lo sacaron!', 'bad'], corto: ['¡Te lo sacaron! · corto', 'bad'], seco: ['¡Te lo sacaron! · seco', 'bad'],
+};
+export function popupText(handoff) {
+  const [title, kind] = RATING[handoff.rating] || ['', 'ok'];
+  const detail = [handoff.points > 0 ? `+${pts(handoff.points)}` : '+0', ...(handoff.tags || [])].join(' · ');
+  return { title, detail, kind };
 }
 
 // One line on the end screen that says what to do differently next run.
@@ -31,15 +44,16 @@ export function canRestart(sinceOver, pressedEdge) {
   return sinceOver >= T.RESTART_GUARD && pressedEdge;
 }
 
-export function createUi({ store, audio, canvas, headScreen, onRestart }) {
+export function createUi({ store, audio, canvas, headScreen, rigAnchor, onRestart }) {
   const $ = id => document.getElementById(id);
-  const layer = $('bubbles'), status = $('status'), total = $('total'), bestEl = $('best'), end = $('end');
+  const layer = $('bubbles'), status = $('status'), total = $('total'), matesEl = $('mates'), bestEl = $('best'), end = $('end');
+  let shownPoints = 0;
   const rng = makeRng(Date.now() >>> 0);
   const lastLine = {};
   let bubbles = [], clock = 0, tutorialPourShown = false, teased = false;
 
   const setStatus = text => { if (status.textContent !== text) status.textContent = text; };
-  const showBest = () => { const b = store.get('best', 0); bestEl.textContent = b ? ` récord ${b}` : ''; };
+  const showBest = () => { const b = store.get('bestPoints', 0); bestEl.textContent = b ? `récord ${pts(b)}` : ''; };
 
   function say(seat, category, state, text) {
     const warn = category === 'gracias';
@@ -57,6 +71,20 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
     const until = clock + Math.max(T.BUBBLE_TIME, (times.at(-1) || 0) + .9);
     bubbles.push({ seat, el, line, times, start: clock, until });
     setStatus(line);
+  }
+
+  // the hand-off popup, floating up from the gourd
+  function popup(handoff) {
+    const { title, detail, kind } = popupText(handoff);
+    for (const old of layer.querySelectorAll('.pop')) old.remove();
+    const el = document.createElement('div');
+    el.className = `pop ${kind}`;
+    el.innerHTML = `<b>${title}</b><span>${detail}</span>`;
+    const a = rigAnchor(), pos = bubblePosition(a.sx, a.sy, canvas.getBoundingClientRect());
+    el.style.left = pos.left + 'px';
+    el.style.top = pos.top + 'px';
+    layer.append(el);
+    setTimeout(() => el.remove(), 2200);
   }
 
   // rules dialog
@@ -98,6 +126,7 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
           case 'lavado': say(e.seat, 'lavado', state); break;
           case 'arrive': say(e.seat, 'arrive', state); break;
           case 'handoff':
+            if (!state.tutorial && e.seat !== 0) popup(e);
             // an empty grab always gets its own line; a half-full one only if nobody teased this turn
             if (e.grabbed && state.turn.fill < .02) say(e.seat, 'grabEmpty', state);
             else if (e.grabbed && !e.good && !teased) say(e.seat, 'grab', state);
@@ -112,11 +141,13 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
           case 'tip': setStatus(e.name === 'shift' ? LINES.tutorial.shiftTip : LINES.tutorial[e.name]); break;
           case 'gameOver': {
             if (e.reason === 'gracias') say(e.seat, 'bomb', state);
-            const best = Math.max(store.get('best', 0), e.score);
-            store.set('best', best);
+            const best = Math.max(store.get('bestPoints', 0), e.points);
+            store.set('bestPoints', best);
+            store.set('best', Math.max(store.get('best', 0), e.score));
             showBest();
             const lines = formatEnd(e, best);
             lines.splice(3, 0, endHint(e, state.stats));
+            if (e.points >= best && e.points > 0) lines[4] = '¡récord nuevo!';
             end.firstElementChild.innerHTML = lines.slice(0, 5).map((l, i) => `<p class="${i ? 'muted' : ''}">${l}</p>`).join('')
               + `<button type="button" id="again">${lines[5]}</button>`;
             end.querySelector('#again').addEventListener('click', () => onRestart?.(true));
@@ -125,7 +156,12 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
           }
         }
       }
-      total.textContent = state.score;
+      if (state.points !== shownPoints) {
+        shownPoints = state.points;
+        total.textContent = pts(state.points);
+        total.classList.remove('bump'); void total.offsetWidth; total.classList.add('bump');
+      }
+      matesEl.textContent = `${state.score} ${state.score === 1 ? 'mate' : 'mates'}`;
     },
 
     frame(state, dt) {
@@ -157,7 +193,7 @@ export function createUi({ store, audio, canvas, headScreen, onRestart }) {
       for (const b of bubbles) b.el.remove();
       bubbles = [];
       end.hidden = true;
-      total.textContent = '0';
+      total.textContent = '0'; shownPoints = 0; matesEl.textContent = '0 mates';
       setStatus('');
     },
   };

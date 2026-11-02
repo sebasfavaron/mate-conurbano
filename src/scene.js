@@ -611,6 +611,9 @@ function drawStream(from, to, flow) {
   for (let k = 0; k < 3; k++) px(to[0] - 2 + k * 2, to[1] - 1, C.shine); // splash
 }
 
+// Canvas point just above the gourd, where the hand-off popup appears.
+export function rigAnchor() { return { sx: RIG.mouth.x, sy: RIG.mouth.y - 26 }; }
+
 export function drawRig(state, t) {
   const dt = clamp(t - rigFx.t, 0, .1);
   rigFx.t = t;

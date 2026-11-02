@@ -17,7 +17,7 @@ export function pourAt(tilt) {
 }
 
 const newTurn = (seat, trap, armed) => ({
-  seat, trap, armed, fill: 0, overflow: 0, spilled: false, stillTime: 0, waited: 0, teases: 0, pourWash: 0, washed: 0, pouring: false,
+  seat, trap, armed, fill: 0, overflow: 0, spilled: false, stillTime: 0, waited: 0, teases: 0, pourWash: 0, washed: 0, washedTop: 0, pouring: false,
 });
 
 export function createRun({ seed = 1, skipTutorial = false } = {}) {
@@ -32,7 +32,7 @@ export function createRun({ seed = 1, skipTutorial = false } = {}) {
     truck: { active: false, progress: 0, speed: 0, nextAt: 0, guestPass: false, stopped: false, signalled: false, slowTime: 0 },
     guest: { planned: false, done: false },
     lastLavadoAt: -Infinity, tipShown: false, tips: {}, arrivals: 0, over: null, rng,
-    stats: { washTop: 0, washSpill: 0, spills: 0, shortGrabs: 0 }, secos: 0,
+    stats: { washTop: 0, washSpill: 0, spills: 0, shortGrabs: 0 }, secos: 0, points: 0, combo: 0,
   };
   state.guest.planned = nextRandom(rng) < T.P_GUEST;
   state.truck.nextAt = randomBetween(rng, T.TRUCK_FIRST_MIN, T.TRUCK_FIRST_MAX);
@@ -109,6 +109,7 @@ function pourTick(s, h, tilt, aim, events) {
     s.yerba -= wash;
     t.pourWash += wash;
     t.washed += wash;
+    t.washedTop += top;
     t.stillTime = 0;
     if (s.yerba <= 0) return gameOver(s, 'lavado', events);
   } else {
@@ -126,6 +127,30 @@ function pourTick(s, h, tilt, aim, events) {
     if (t.waited >= window - EPS) return handOff(s, events, true);
   }
   if (flow === 0 && t.fill >= T.FILL_OK && t.stillTime >= T.HANDOFF_DELAY - EPS) handOff(s, events, false);
+}
+
+// Points for one hand-off. A good mate earns a base plus bonuses for filling to the brim, keeping the
+// mound dry and beating the tease; a spill costs; a grab halves it; clean streaks multiply it.
+export function pourScore({ fill, overflow = 0, washedTop = 0, teased = false, grabbed = false, combo = 0, guest = false }) {
+  if (fill < T.FILL_OK) return { points: 0, combo: 0, rating: fill < T.SECO_FILL ? 'seco' : 'corto', tags: [] };
+  const tags = [];
+  let pts = T.PTS_BASE;
+  if (overflow > 0) { pts += T.PTS_SPILL; tags.push('rebalsado'); }
+  else if (fill >= T.PTS_BRIM_AT) { pts += T.PTS_BRIM; tags.push('al ras'); }
+  else if (fill >= T.PTS_NEAR_AT) pts += T.PTS_NEAR_BRIM;
+  const clean = clamp(1 - washedTop / T.PTS_CLEAN_WASH, 0, 1);
+  pts += T.PTS_CLEAN * clean;
+  if (clean > .9) tags.push('limpio');
+  if (!teased && !grabbed) { pts += T.PTS_QUICK; tags.push('rápido'); }
+  const keep = !grabbed && overflow === 0 && clean > .5;   // a clean, unhurried, unspilled mate keeps the streak
+  const nextCombo = keep ? Math.min(combo + 1, T.PTS_COMBO_MAX) : 0;
+  let mult = keep ? 1 + T.PTS_COMBO_STEP * combo : 1;
+  if (keep && combo > 0) tags.push(`racha x${mult.toFixed(1).replace('.', ',')}`);
+  if (grabbed) mult *= T.PTS_GRAB_MULT;
+  if (guest) { mult *= T.GUEST_VALUE; tags.push('x2 camionero'); }
+  const points = Math.round(pts * mult / 5) * 5;
+  const rating = grabbed ? 'sacado' : points >= 240 ? 'perfecto' : points >= 170 ? 'muy bien' : points >= 110 ? 'bien' : 'zafa';
+  return { points, combo: nextCombo, rating, tags };
 }
 
 function endPour(s, events) {
@@ -164,12 +189,16 @@ function handOff(s, events, grabbed) {
     events.push({ type: 'handoff', seat: 0, good, value: 0, grabbed });
     return setPhase(s, 'drink');
   }
-  const value = good ? (s.seats[t.seat].guest ? T.GUEST_VALUE : 1) : 0;
+  const guest = !!s.seats[t.seat].guest;
+  const value = good ? (guest ? T.GUEST_VALUE : 1) : 0;
   if (grabbed && !good) { s.stats.shortGrabs += 1; tip(s, events, 'foam'); }
+  const rated = pourScore({ fill: t.fill, overflow: t.overflow, washedTop: t.washedTop, teased: t.teases > 0, grabbed, combo: s.combo, guest });
+  s.combo = rated.combo;
+  s.points += rated.points;
   s.served += 1;
   s.score += value;
   s.yerba -= T.WEAR_BASE;
-  events.push({ type: 'handoff', seat: t.seat, good, value, grabbed });
+  events.push({ type: 'handoff', seat: t.seat, good, value, grabbed, points: rated.points, rating: rated.rating, tags: rated.tags });
   if (s.yerba <= 0) return gameOver(s, 'lavado', events);
   // a dry mate (grabbed under SECO_FILL) annoys the ronda; SECO_LIMIT in a row and they leave
   if (grabbed && t.fill < T.SECO_FILL) {
@@ -263,10 +292,10 @@ function setPhase(s, phase) {
 
 function gameOver(s, reason, events, seat) {
   const minutes = Math.floor(s.rondaTime / 60);
-  s.over = { reason, score: s.score, minutes };
+  s.over = { reason, score: s.score, points: s.points, minutes };
   s.phase = 'over';
   s.phaseTime = 0;
-  const e = { type: 'gameOver', reason, score: s.score, minutes };
+  const e = { type: 'gameOver', reason, score: s.score, points: s.points, minutes };
   if (seat != null) e.seat = seat;
   events.push(e);
 }
