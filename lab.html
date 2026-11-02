@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="es-AR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cebar Mate · laboratorio de sonido</title>
+<style>
+  :root { --paper: #fff; --ink: #1c1b19; --muted: #8b877f; }
+  body { margin: 0; padding: 24px 16px; background: var(--paper); color: var(--ink); font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+  main { max-width: 620px; margin: 0 auto; }
+  h1 { font-size: 15px; margin: 0 0 4px; }
+  p { color: var(--muted); margin: 0 0 20px; }
+  fieldset { border: 1px solid #e4e1db; margin: 0 0 16px; padding: 10px 14px 14px; }
+  legend { color: var(--muted); padding: 0 6px; }
+  label { display: grid; grid-template-columns: 130px 1fr 60px; gap: 10px; align-items: center; margin: 6px 0; }
+  output { text-align: right; }
+  button { font: inherit; background: none; border: 1px solid var(--ink); color: var(--ink); padding: 4px 10px; margin: 4px 6px 4px 0; cursor: pointer; }
+  input[type=text] { font: inherit; width: 100%; box-sizing: border-box; padding: 4px; margin: 6px 0; }
+  pre { background: #f5f3ef; padding: 10px; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Laboratorio de sonido</h1>
+  <p>Tuning without playing. Press "arrancar audio" first (browsers need a click).</p>
+  <button id="start">arrancar audio</button>
+
+  <fieldset><legend>cebada</legend>
+    <label>flow <input id="flow" type="range" min="0" max="0.55" step="0.005" value="0"><output></output></label>
+    <label>fill <input id="fill" type="range" min="0" max="1.05" step="0.005" value="0"><output></output></label>
+    <label>topFrac <input id="topFrac" type="range" min="0" max="1" step="0.01" value="0"><output></output></label>
+    <label>RES_F_EMPTY <input data-param="RES_F_EMPTY" type="range" min="120" max="500" step="5"><output></output></label>
+    <button id="sweep">llenar 0 → 1 en 5 s</button>
+    <button id="slurp">bombilla</button> <button id="splash">derrame</button> <button id="honk">bocina</button>
+  </fieldset>
+
+  <fieldset><legend>música y camión</legend>
+    <label>MUSIC_GAIN <input data-param="MUSIC_GAIN" type="range" min="0" max="1" step="0.01"><output></output></label>
+    <label>MUSIC_DUCK <input data-param="MUSIC_DUCK" type="range" min="0" max="1" step="0.01"><output></output></label>
+    <label>DUCK_FADE_IN <input data-param="DUCK_FADE_IN" type="range" min="0" max="4" step="0.1"><output></output></label>
+    <label>DUCK_FADE_OUT <input data-param="DUCK_FADE_OUT" type="range" min="0" max="6" step="0.1"><output></output></label>
+    <label>TRUCK_GAIN <input data-param="TRUCK_GAIN" type="range" min="0" max="2" step="0.05"><output></output></label>
+    <button id="truck">pasada del camión (30,3 s)</button> <span id="truck-progress"></span>
+  </fieldset>
+
+  <fieldset><legend>voces</legend>
+    <label>hz <input id="hz" type="range" min="70" max="400" step="5" value="260"><output></output></label>
+    <label>rate <input id="rate" type="range" min="0.4" max="1.6" step="0.05" value="1"><output></output></label>
+    <label>wordPause <input id="pause" type="range" min="0" max="0.3" step="0.01" value="0.05"><output></output></label>
+    <input id="line" type="text" value="¿Es cuadrado ese mate que no gira?">
+    <button id="say">decir</button> <button id="driver">voz del camionero</button> <span id="typed"></span>
+  </fieldset>
+
+  <button id="copy">copiar valores</button>
+  <pre id="out"></pre>
+</main>
+<script type="module">
+import { createAudio } from './src/audio.js';
+import { T } from './src/tuning.js';
+
+const audio = createAudio({});
+const $ = id => document.getElementById(id);
+const state = { phase: 'pour', flow: 0, topFrac: 0, turn: { fill: 0 }, truck: { active: false, progress: 0 } };
+let sweepT = null, truckT = null;
+
+for (const label of document.querySelectorAll('label')) {
+  const input = label.querySelector('input'), out = label.querySelector('output');
+  if (input.dataset.param) input.value = audio.params[input.dataset.param];
+  const show = () => { out.textContent = Number(input.value).toFixed(3).replace(/\.?0+$/, ''); };
+  input.addEventListener('input', () => {
+    show();
+    if (input.dataset.param) {
+      audio.params[input.dataset.param] = Number(input.value);
+      if (/MUSIC|DUCK/.test(input.dataset.param)) audio.duck(state.truck.active);
+    }
+  });
+  show();
+}
+
+$('start').onclick = () => audio.start();
+$('sweep').onclick = () => { sweepT = 0; };
+$('slurp').onclick = () => audio.slurp();
+$('splash').onclick = () => audio.splash();
+$('honk').onclick = () => audio.honk();
+$('truck').onclick = () => {
+  truckT = 0; state.truck.active = true; state.truck.progress = 0;
+  audio.handle([{ type: 'truckEnter', guest: false }], state);
+};
+const voice = () => ({ hz: Number($('hz').value), rate: Number($('rate').value), wordPause: Number($('pause').value) });
+const say = v => {
+  const text = $('line').value, times = audio.say(text, v), t0 = performance.now();
+  const tick = () => {
+    const s = (performance.now() - t0) / 1000, n = times.filter(t => t <= s).length;
+    $('typed').textContent = text.slice(0, n);
+    if (n < text.length) requestAnimationFrame(tick);
+  };
+  tick();
+};
+$('say').onclick = () => say(voice());
+$('driver').onclick = () => say(T.DRIVER_VOICE);
+$('copy').onclick = () => {
+  const p = audio.params, keys = ['MUSIC_GAIN', 'MUSIC_DUCK', 'DUCK_FADE_IN', 'DUCK_FADE_OUT', 'TRUCK_GAIN', 'RES_F_EMPTY'];
+  const text = keys.map(k => `${k}: ${p[k]},`).join(' ');
+  $('out').textContent = `// src/tuning.js\n${text}\n// voice: { hz: ${voice().hz}, rate: ${voice().rate} }, wordPause ${voice().wordPause}`;
+  navigator.clipboard?.writeText(text).catch(() => {});
+};
+
+let last = performance.now();
+function frame(now) {
+  const dt = Math.min(.05, (now - last) / 1000); last = now;
+  if (sweepT != null) {
+    sweepT += dt;
+    $('fill').value = Math.min(1.05, sweepT / 5);
+    if (Number($('flow').value) === 0) $('flow').value = .3;
+    if (sweepT >= 5.25) { sweepT = null; $('flow').value = 0; }
+    for (const id of ['fill', 'flow']) $(id).dispatchEvent(new Event('input'));
+  }
+  if (truckT != null) {
+    truckT += dt;
+    state.truck.progress = Math.min(1, truckT / T.TRUCK_PASS);
+    $('truck-progress').textContent = `${Math.round(state.truck.progress * 100)} %`;
+    if (state.truck.progress >= 1) { truckT = null; state.truck.active = false; audio.handle([{ type: 'truckLeave' }], state); }
+  }
+  state.flow = Number($('flow').value);
+  state.turn.fill = Number($('fill').value);
+  state.topFrac = Number($('topFrac').value);
+  audio.update(state, dt);
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
