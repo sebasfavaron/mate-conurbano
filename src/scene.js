@@ -207,11 +207,144 @@ export function bakeScene() {
   bakedZ.set(zb);
 }
 
+/* ---------- people ---------- */
+// Five friends and the truck driver. Generic colours, no club crests.
+export const LOOKS = [
+  { shirt: [40, 96, 160], stripe: [236, 234, 226], legs: [48, 50, 62], hair: [40, 30, 24], skin: [222, 172, 134], detail: 'stripes' },
+  { shirt: [196, 70, 52], stripe: [196, 70, 52], legs: [70, 74, 92], hair: [34, 28, 26], skin: [200, 150, 112], detail: 'cap', cap: [30, 34, 44] },
+  { shirt: [86, 120, 74], stripe: [86, 120, 74], legs: [96, 84, 66], hair: [72, 52, 38], skin: [214, 162, 124], detail: 'moustache' },
+  { shirt: [70, 70, 78], stripe: [70, 70, 78], legs: [40, 42, 50], hair: [26, 22, 22], skin: [180, 130, 96], detail: 'hoodie' },
+  { shirt: [236, 196, 70], stripe: [236, 196, 70], legs: [62, 78, 110], hair: [110, 74, 44], skin: [230, 184, 148], detail: 'sunglasses' },
+  { shirt: [210, 206, 196], stripe: [210, 206, 196], legs: [58, 64, 80], hair: [90, 84, 80], skin: [196, 140, 104], detail: 'cap', cap: [44, 88, 60], scale: 1.15, heavy: true },
+];
+const SHOE_C = [226, 222, 212], DARK = [30, 28, 30];
+
+// Seated variant of the engine's figure(): hips on the chair, thighs forward, shins down.
+export function seatedFigure(px, py, yaw, pose, look, addBone) {
+  const fx = Math.cos(yaw), fy = Math.sin(yaw), sx = -fy, sy = fx, k = look.scale || 1, base = pose.z || 0;
+  const P = (a, b, c) => [px + (fx * a + sx * b) * k, py + (fy * a + sy * b) * k, c * k + base];
+  const add = (a, b, r0, r1, f) => addBone(a, b, r0 * k, r1 * k, f);
+  const ball = (c, r, color) => add(c, c, r, r, () => color);
+  const shirt = z => (look.detail === 'stripes' && Math.floor(z * 3.2) % 2 ? look.stripe : look.shirt);
+  const legs = () => look.legs, skin = () => look.skin;
+  const lean = pose.lean || 0, hipZ = .56 / k + (pose.standing ? .7 : 0);
+  const torsoR = look.heavy ? .4 : .3;
+  const shA = Math.sin(lean) * .9, shZ = hipZ + Math.cos(lean) * .9;
+  const neck = P(shA, 0, shZ + .08), head = P(shA + Math.sin(lean) * .3, 0, shZ + .36);
+  for (const side of [.15, -.15]) {
+    const hip = P(0, side, hipZ), knee = P(.46, side * 1.1, hipZ + .02), foot = P(.52, side * 1.15, .1);
+    add(hip, knee, .17, .14, legs); add(knee, foot, .13, .1, legs);
+    add(foot, P(.68, side * 1.15, .08), .1, .09, () => SHOE_C);
+  }
+  add(P(0, 0, hipZ), neck, torsoR, torsoR + .02, shirt);
+  add(neck, head, .11, .12, skin);
+  ball(head, .24, look.skin);
+  const hb = [head[0] - fx * .06 * k, head[1] - fy * .06 * k, head[2] + .08 * k];
+  if (look.detail === 'hoodie') ball([head[0] - fx * .08 * k, head[1] - fy * .08 * k, head[2] + .05 * k], .27, look.shirt);
+  else ball(hb, .205, look.hair);
+  if (look.detail === 'cap') {
+    ball([hb[0], hb[1], hb[2] + .04 * k], .21, look.cap);
+    add([head[0] + fx * .12 * k, head[1] + fy * .12 * k, head[2] + .17 * k], [head[0] + fx * .32 * k, head[1] + fy * .32 * k, head[2] + .14 * k], .07, .06, () => look.cap);
+  }
+  if (look.detail === 'moustache') add(P(shA + .23, -.07, shZ + .3), P(shA + .23, .07, shZ + .3), .045, .045, () => look.hair);
+  if (look.detail === 'sunglasses') add(P(shA + .14, -.1, shZ + .55), P(shA + .14, .1, shZ + .55), .06, .06, () => DARK);
+
+  const shR = P(shA, .36 + (look.heavy ? .06 : 0), shZ - .03), shL = P(shA, -.36 - (look.heavy ? .06 : 0), shZ - .03);
+  let elbowR, handR, elbowL, handL;
+  if (pose.drinking) {
+    elbowR = P(shA + .3, .34, shZ - .3); handR = P(shA + .38, .12, shZ + .22);
+  } else if (pose.palm) {
+    elbowR = P(shA + .1, .62, shZ + .3); handR = P(shA + .16, .66, shZ + .86);
+  } else if (pose.offended) {
+    elbowR = P(shA + .22, .3, shZ - .42); handR = P(shA + .3, -.08, shZ - .2);
+    elbowL = P(shA + .22, -.3, shZ - .42); handL = P(shA + .3, .08, shZ - .14);
+  } else {
+    const reach = pose.reach || 0; // 0 = hand on the thigh, 1 = arm out towards the cebador
+    elbowR = P(shA + lerp(.22, .42, reach), .4, shZ - lerp(.42, .2, reach));
+    handR = P(shA + lerp(.48, .9, reach), .34, shZ - lerp(.62, .16, reach));
+  }
+  if (!elbowL) { elbowL = P(shA + .22, -.42, shZ - .42); handL = P(shA + .48, -.36, shZ - .62); }
+  add(shR, elbowR, .12, .1, shirt); add(elbowR, handR, .09, .08, skin);
+  add(shL, elbowL, .12, .1, shirt); add(elbowL, handL, .09, .08, skin);
+  if (pose.palm) ball(handR, .14, [Math.min(255, look.skin[0] + 20), Math.min(255, look.skin[1] + 20), Math.min(255, look.skin[2] + 20)]);
+  return { handR, head };
+}
+
+/* ---------- gestures fed by sim events ---------- */
+const WALK_TIME = 2, PALM_TIME = 1.2;
+const fx = { palm: [], tease: [], arrive: [], offended: -1 };
+export function resetScene() {
+  fx.palm = []; fx.tease = []; fx.arrive = []; fx.offended = -1;
+}
+export function sceneEvents(events, state) {
+  for (const e of events) {
+    if (e.type === 'gracias') fx.palm[e.seat] = state.time;
+    else if (e.type === 'tease') fx.tease[e.seat] = state.time;
+    else if (e.type === 'turn' || e.type === 'handoff') fx.tease = [];
+    else if (e.type === 'arrive') fx.arrive[e.seat] = state.time;
+    else if (e.type === 'gameOver' && e.reason === 'gracias') fx.offended = e.seat;
+  }
+}
+
+const TABLE_EDGE_0 = [1.05, 1.05, TABLE_Z + .2]; // where the gourd leaves your hands, on the near side
+const GOURD = [118, 104, 56], BOMBILLA = rgb(214, 214, 220);
+
+function drawGourd(p) {
+  sphere(p[0], p[1], p[2], .12, GOURD, 'gloss');
+  pendingShadows.push(p, .12, p, .12);
+  plot(p[0] + .04, p[1] - .02, p[2] + .14, BOMBILLA);
+  plot(p[0] + .06, p[1] - .03, p[2] + .22, BOMBILLA);
+}
+
+function personAt(index, state) {
+  const seat = seatPosition(index);
+  const since = fx.arrive[index] == null ? Infinity : state.time - fx.arrive[index];
+  if (since < WALK_TIME) {
+    const t = ease(clamp(since / WALK_TIME, 0, 1)), from = [GUEST_SPOT[0], GUEST_SPOT[1] + .3];
+    const x = lerp(from[0], seat.x, t), y = lerp(from[1], seat.y, t);
+    return { walking: true, x, y, yaw: Math.atan2(seat.y - from[1], seat.x - from[0]) };
+  }
+  return { walking: false, ...seat };
+}
+
+function drawPeople(state, t) {
+  const holder = state.phase === 'over' ? -1 : state.turn.seat;
+  for (let i = 1; i <= 6; i++) {
+    const occupant = state.seats[i];
+    if (!occupant) continue;
+    const look = LOOKS[occupant.look] || LOOKS[0], at = personAt(i, state);
+    if (at.walking) {
+      const stride = STILL ? 0 : Math.sin(t * 9) * .35;
+      figure(at.x, at.y, at.yaw, { stance: .15 + stride * .2, armR: stride, armL: -stride, scale: look.scale }, look, dynamicAdd);
+      continue;
+    }
+    const isHolder = i === holder && state.phase !== 'pour', p = state.phaseTime;
+    const pose = {};
+    if (fx.offended === i) Object.assign(pose, { offended: true, lean: -.2 });
+    else if (state.time - (fx.palm[i] ?? -99) < PALM_TIME) pose.palm = true;
+    else if (isHolder && state.phase === 'drink') pose.drinking = true;
+    else if (isHolder && state.phase === 'out') pose.reach = 1 - ease(clamp(p / T.PASS_TIME, 0, 1)) * .4;
+    else if (isHolder && state.phase === 'back') pose.reach = .6 + ease(clamp(p / T.PASS_TIME, 0, 1)) * .4;
+    else if (i === holder && state.phase === 'pour' && fx.tease[i] != null) Object.assign(pose, { lean: .28, reach: .8 });
+    else pose.lean = STILL ? 0 : Math.sin(t * 1.6 + i) * .015;
+    if (i === 6) Object.assign(pose, { standing: true, lean: (pose.lean || 0) + .3 });
+    const { handR } = seatedFigure(at.x, at.y, at.yaw, pose, look, dynamicAdd);
+    if (!isHolder) continue;
+    const u = ease(clamp(p / T.PASS_TIME, 0, 1));
+    if (state.phase === 'out') drawGourd(lerp3(TABLE_EDGE_0, handR, u));
+    else if (state.phase === 'back') drawGourd(lerp3(handR, TABLE_EDGE_0, u));
+    else drawGourd(handR);
+  }
+  // the cebador's own first mate: drunk off-screen in the rig, nothing to draw here
+}
+const lerp3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t)];
+
 /* ---------- per frame ---------- */
 export function drawScene(state, t) {
   pix.set(bakedPix);
   zb.set(bakedZ);
   pendingShadows.length = 0;
+  drawPeople(state, t);
   const windT = STILL ? 0 : Math.floor(t * WIND_FPS) / WIND_FPS;
   drawLeaves(windT);
   drawTufts(windT);
@@ -221,8 +354,9 @@ export function drawScene(state, t) {
   ctx.putImageData(image, 0, 0);
 }
 
-export function headScreen(index) {
-  const { x, y } = seatPosition(index);
-  const p = project(x, y, 2.0);
+export function headScreen(index, state) {
+  const at = state ? personAt(index, state) : seatPosition(index);
+  const top = index === 6 ? 2.6 : at.walking ? 2.1 : 1.85;
+  const p = project(at.x, at.y, top);
   return { sx: p.sx, sy: p.sy };
 }

@@ -33,6 +33,23 @@ try {
   };
 
   await shot('01-start');
+
+  // finish the tutorial mate, then catch the first friend mid-drink
+  await page.evaluate(() => {
+    const m = window.__mate;
+    for (let i = 0; i < 2000 && m.state.turn.fill < .9; i++) m.step(.02, .4);
+    for (let i = 0; i < 2000 && !(m.state.tutorial === false && m.state.phase === 'pour'); i++) m.step(.02, 0);
+    for (let i = 0; i < 2000 && m.state.turn.fill < .9; i++) m.step(.02, .45);
+    for (let i = 0; i < 2000 && m.state.phase !== 'drink'; i++) m.step(.02, 0);
+    m.step(1.2, 0);
+  });
+  await shot('02-drink');
+  await shot('03-palm', () => {
+    const m = window.__mate;
+    m.state.seats[4].saidGracias = true;
+    m.feed([{ type: 'gracias', seat: 4, palmOnly: true }]);
+    m.step(.02, 0);
+  });
 } finally {
   await browser?.close();
   server.kill();

@@ -1,7 +1,7 @@
 // Boot and frame loop: input → sim → scene.
 import { createRun, step } from './sim.js';
 import { bindInput } from './input.js';
-import { bakeScene, drawScene } from './scene.js';
+import { bakeScene, drawScene, sceneEvents } from './scene.js';
 
 const canvas = document.getElementById('c');
 const input = bindInput(canvas);
@@ -11,7 +11,8 @@ let started = false, last = performance.now();
 const mate = window.__mate = {
   get state() { return state; },
   drawn: 0,
-  step(dt, tilt) { const r = step(state, dt, tilt); drawScene(state, state.time); mate.drawn++; return r.events; },
+  step(dt, tilt) { const r = step(state, dt, tilt); sceneEvents(r.events, state); drawScene(state, state.time); mate.drawn++; return r.events; },
+  feed(events) { sceneEvents(events, state); },
 };
 
 addEventListener('resize', fit);
@@ -23,7 +24,7 @@ function frame(now) {
   last = now;
   const tilt = input.read(dt);
   if (!started && input.raw.pressedEdge) started = true;
-  if (started) step(state, dt, tilt);
+  if (started) sceneEvents(step(state, dt, tilt).events, state);
   drawScene(state, now / 1000);
   mate.drawn++;
   requestAnimationFrame(frame);
