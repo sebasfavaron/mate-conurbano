@@ -355,8 +355,8 @@ const lerp3 = (a, b, t) => [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2],
 /* ---------- the hero pour rig (screen space, decision D1) ---------- */
 // Your hands, the thermos and the gourd, drawn pixel by pixel over the bottom centre and not to world scale.
 const RIG = {
-  mouth: { x: 204, y: 232, rx: 13, ry: 7 },     // gourd opening seen from 30° above
-  body: { x: 204, y: 246, rx: 15, ry: 16 },     // calabaza belly below the mouth
+  mouth: { x: 204, y: 230, rx: 15, ry: 8 },     // gourd opening seen from 30° above
+  body: { x: 204, y: 246, rx: 17, ry: 17 },     // calabaza belly below the mouth
   pivot: { x: 168, y: 214 },                    // your left fist, where the thermos turns
   thermo: { back: 16, front: 17, half: 6 },     // thermos length behind / ahead of the fist, half width
   hole: { u: .35, v: .45 },                     // centre of the side hole inside the mouth (unit ellipse)
@@ -370,7 +370,8 @@ const C = {
   water: rgb(132, 186, 222), waterDeep: rgb(92, 150, 196), shine: rgb(236, 248, 255), stream: rgb(156, 206, 238),
   palito: rgb(214, 204, 150), bombilla: rampOf([200, 204, 214]), foam: rgb(222, 230, 186), foamDark: rgb(176, 196, 140),
 };
-const rigFx = { tilt: 0, t: 0, flecks: [] };
+const rigFx = { tilt: 0, t: 0, flecks: [], scar: [], turn: null };
+const MURK = [176, 172, 102], MURK_DEEP = [132, 132, 72], SCAR = [[70, 76, 40], [88, 90, 48]];
 const DRY_DUST = rgb(214, 210, 150), STEAM = rgb(244, 244, 240);
 
 function px(x, y, c) {
@@ -412,31 +413,32 @@ function arm(fromX, fromY, toX, toY, w0, w1, sleeveTo) {
   });
 }
 
-// Your left hand around the thermos: four fingers wrapping the body, the thumb along it, the back of the hand.
+// Cartoon mitten hands: a few rounded lobes with one ink outline each and flat two-tone shading.
+function lobe(cx, cy, rx, ry, rot = 0, tone = 0) {
+  const c = Math.cos(rot), sn = Math.sin(rot), r = Math.max(rx, ry) + 1;
+  return shape(cx - r, cy - r, cx + r, cy + r, (x, y) => {
+    const dx = x - cx, dy = y - cy, u = (dx * c + dy * sn) / rx, v = (-dx * sn + dy * c) / ry;
+    if (u * u + v * v > 1) return null;
+    if (u * -.6 + v * -.8 > .55) return C.skin[4];          // highlight on the upper-left
+    return C.skin[(u * .5 + v * .85 > .35 ? 2 : 3) + tone];  // shade on the lower-right
+  });
+}
+
+// Your left hand around the thermos: a mitten wrapped across the body, a thumb pointing to the spout.
 function thermosHand(local, toScreen, half) {
-  const back = toScreen(-1.5, -half - 2.6);
-  shape(back[0] - 7, back[1] - 7, back[0] + 7, back[1] + 7, (x, y) => {
-    const [a, b] = local(x, y), u = (a + 1.5) / 4.6, v = (b + half + 2.6) / 3.4;
-    if (u * u + v * v > 1) return null;
-    return C.skin[clamp(Math.round(3 - v * .8 - u * .4), 1, 4)];
-  });
-  const r = half + 9;
-  // four fingers as one block (one ink outline), soft creases between them and rounded tips
-  shape(RIG.pivot.x - r, RIG.pivot.y - r, RIG.pivot.x + r, RIG.pivot.y + r, (x, y) => {
-    const [a, b] = local(x, y);
-    if (a < -6.6 || a > 4 || b < -half - 1.6 || b > half + 1) return null;
-    const f = (a + 6.6) / 2.65, i = Math.min(3, Math.floor(f)), t = f - i;
-    const tip = b - (half - .4);
-    if (tip > 0 && (t - .5) * (t - .5) * 7 + tip * tip > 1.6) return null;
-    if (i > 0 && t < .2 && b > -half + .5) return C.skin[1];
-    return C.skin[clamp(Math.round(3.3 - (b / half) * .7 - (t - .5) * .8), 2, 4)];
-  });
-  // thumb along the near side, pointing to the spout
-  shape(RIG.pivot.x - r, RIG.pivot.y - r, RIG.pivot.x + r, RIG.pivot.y + r, (x, y) => {
-    const [a, b] = local(x, y), u = (a - 4.2) / 3.6, v = (b + half + .6) / 1.7;
-    if (u * u + v * v > 1) return null;
-    return C.skin[clamp(Math.round(3.4 - v * .9), 1, 4)];
-  });
+  const angle = Math.atan2(toScreen(1, 0)[0] - toScreen(0, 0)[0], -(toScreen(1, 0)[1] - toScreen(0, 0)[1]));
+  const rot = angle; // the mitten's long side runs across the thermos
+  const c = toScreen(-1.4, -.6);
+  lobe(c[0], c[1], half + 2.4, 6, rot);
+  // finger notches on the far edge
+  for (const a of [-3.2, -.6, 2]) {
+    for (let k = 0; k < 2; k++) {
+      const p = toScreen(a, half + 1.6 - k);
+      px(p[0], p[1], C.ink);
+    }
+  }
+  const th = toScreen(4.4, -half - .4);
+  lobe(th[0], th[1], 2.2, 4, rot);
 }
 
 // An Argentine thermos: hammered green body, steel bands, a dark cup for a cap and the steel pouring spout.
@@ -463,37 +465,19 @@ function drawThermos(angle, glow) {
   return toScreen(front, 0);
 }
 
-// Your right hand under the gourd: palm beneath, three fingertips up the side, the thumb on the other side.
+// Your right hand under the gourd: a cupped mitten with the fingers up one side and the thumb up the other.
 function gourdHand(full) {
-  const { body: g } = RIG, cx = g.x, cy = g.y + g.ry - 1;
-  shape(cx - 13, cy - 6, cx + 13, cy + 6, (x, y) => {
-    const u = (x - cx) / 12, v = (y - cy) / 4.6;
-    if (u * u + v * v > 1) return null;
-    return C.skin[clamp(Math.round(3 - v * 1.1 - u * .3), 1, 4)];
-  });
+  const { body: g } = RIG;
   if (!full) {
-    // empty and cupped: fingertips along the top edge of the palm
-    for (let k = 0; k < 4; k++) fingertip(cx - 8 + k * 4.6, cy - 4, 2.2, 1.8);
+    lobe(g.x + 2, g.y + g.ry - 3, 11, 5);
+    lobe(g.x - 6, g.y + g.ry - 7, 4, 3.4, -.5);
     return;
   }
-  for (const [ang, rx, ry] of [[198, 2.6, 2.1], [214, 2.6, 2.1], [230, 2.4, 2]]) {
-    const t = ang * Math.PI / 180;
-    fingertip(g.x + Math.cos(t) * (g.rx - .5), g.y - Math.sin(t) * (g.ry - .5), rx, ry);
-  }
-  // thumb up the right side
-  shape(g.x + 9, g.y + 2, g.x + 18, g.y + 15, (x, y) => {
-    const u = (x - (g.x + 13.2)) / 2.3, v = (y - (g.y + 9)) / 4.2;
-    if (u * u + v * v > 1) return null;
-    return C.skin[clamp(Math.round(3.1 - u * .9), 1, 4)];
-  });
-}
-
-function fingertip(cx, cy, rx, ry) {
-  shape(cx - rx - 1, cy - ry - 1, cx + rx + 1, cy + ry + 1, (x, y) => {
-    const u = (x - cx) / rx, v = (y - cy) / ry;
-    if (u * u + v * v > 1) return null;
-    return C.skin[clamp(Math.round(3.3 - v * .8 - u * .4), 1, 4)];
-  });
+  // fingers and thumb first, so the palm overlaps their roots and they read as one hand
+  lobe(g.x - g.rx + 5, g.y + 9, 3.6, 6.4, .55);
+  lobe(g.x + g.rx - 4, g.y + 11, 2.6, 4.4, -.6);
+  lobe(g.x, g.y + g.ry - 1, 13, 5);
+  for (let k = 0; k < 2; k++) px(g.x - g.rx + 6 + k * 2, g.y + 6 + k * 3, C.ink);  // finger notches
 }
 
 function outlineGlow(mask) {
@@ -512,7 +496,8 @@ function moundEdge(u, height) {
   return lerp(-.55, .25, height) - .55 * u;   // the mound covers v below this line, sloping to the hole
 }
 
-function drawRigGourd(fill, yerba, wetTop, overflow, glow, dry = 0) {
+function drawRigGourd(fill, yerba, wetTop, overflow, glow, dry = 0, murk = 0) {
+  const water1 = rgb(...mixRgb([132, 186, 222], MURK, murk)), water2 = rgb(...mixRgb([92, 150, 196], MURK_DEEP, murk));
   const { mouth: m, body: b } = RIG;
   // belly
   const belly = shape(b.x - b.rx - 1, m.y, b.x + b.rx + 1, b.y + b.ry + 1, (x, y) => {
@@ -539,10 +524,17 @@ function drawRigGourd(fill, yerba, wetTop, overflow, glow, dry = 0) {
         if (f > .25) return f > .7 ? C.foamDark : C.foam;
       }
       if (Math.abs(du + .12) < .12 && Math.abs(dv + wr * .55) < .08) return C.shine;
-      return hd > wr * .7 ? C.waterDeep : C.water;
+      // washed yerba clouds the water: clear blue when you pour into the hole, murky when you hit the mound
+      if (murk > .3 && hash(ix * 7, iy * 3) > 1.05 - murk * .25) return C.palito;
+      return hd > wr * .7 ? water2 : water1;
     }
     if (v < moundEdge(u, height)) {
       const crest = clamp((moundEdge(u, height) - v) / .9, 0, 1);
+      // a dark wet scar where the stream has been digging into the mound this turn
+      for (const [su, sv] of rigFx.scar) {
+        const d = ((u - su) / .9) ** 2 + (v - sv) ** 2;
+        if (d < .08 + .03 * hash(ix, iy)) return rgb(...SCAR[hash(ix * 3, iy) > .5 ? 1 : 0]);
+      }
       // dry yerba before the first pour is dusty; once wet it turns deep green
       if (dry > 0 && hash(ix * 3, iy * 5) < .3 * dry) return DRY_DUST;
       let c = mixRgb(C.yerba, C.yerbaPale, clamp((1 - yerba) * 1.1, 0, 1));
@@ -612,7 +604,14 @@ export function drawRig(state, t) {
   arm(RIG.body.x + 22, H + 8, RIG.body.x + 5, RIG.body.y + RIG.body.ry + 1, 8, 5, .62);
   if (inHand) {
     const dry = state.tutorial && state.phase === 'pour' ? 1 - clamp(fill / T.FILL_OK, 0, 1) : 0;
-    drawRigGourd(fill, state.yerba, state.wetTop, state.phase === 'pour' ? state.turn.overflow : 0, pulse, dry);
+    if (rigFx.turn !== state.turn) { rigFx.turn = state.turn; rigFx.scar = []; }
+    if (state.phase === 'pour' && state.flow > 0 && state.topFrac > .25) {
+      const [lx, ly] = landingPoint(state.land, state.yerba), m = RIG.mouth;
+      const uv = [(lx - m.x) / m.rx, (ly - m.y) / m.ry + .12];
+      if (!rigFx.scar.some(([u, v]) => Math.hypot(u - uv[0], v - uv[1]) < .06) && rigFx.scar.length < 60) rigFx.scar.push(uv);
+    }
+    const murk = clamp((state.turn.washed || 0) / .035, 0, 1);
+    drawRigGourd(fill, state.yerba, state.wetTop, state.phase === 'pour' ? state.turn.overflow : 0, pulse, dry, murk);
     gourdHand(true);
     if (fill > .15) drawSteam(t, fill);
   } else gourdHand(false);
@@ -626,7 +625,7 @@ export function drawRig(state, t) {
     drawStream(spout, land, state.flow);
     // yerba kicked up where the stream hits the mound: the wash, made visible
     if (!STILL && state.topFrac > .2) {
-      const n = dt * 90 * state.topFrac * state.flow / T.FLOW_MAX;
+      const n = dt * 160 * state.topFrac * state.flow / T.FLOW_MAX;
       for (let k = 0; k < n || (k === 0 && Math.random() < n); k++) {
         rigFx.flecks.push({ x: land[0], y: land[1], vx: (Math.random() - .6) * 40, vy: -20 - Math.random() * 30, born: t });
       }

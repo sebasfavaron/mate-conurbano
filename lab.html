@@ -31,7 +31,7 @@
     <label>topFrac <input id="topFrac" type="range" min="0" max="1" step="0.01" value="0"><output></output></label>
     <label>RES_F_EMPTY <input data-param="RES_F_EMPTY" type="range" min="120" max="500" step="5"><output></output></label>
     <button id="sweep">llenar 0 → 1 en 5 s</button>
-    <button id="slurp">bombilla</button> <button id="splash">derrame</button> <button id="honk">bocina</button>
+    <button id="slurp">bombilla</button> <button id="splash">derrame</button> <button id="honk">bocina</button> <button id="bark">ladrido</button> <button id="bird">benteveo</button>
   </fieldset>
 
   <fieldset><legend>música y camión</legend>
@@ -82,6 +82,8 @@ $('sweep').onclick = () => { sweepT = 0; };
 $('slurp').onclick = () => audio.slurp();
 $('splash').onclick = () => audio.splash();
 $('honk').onclick = () => audio.honk();
+$('bark').onclick = () => { audio.bark(.4); audio.bark(.4, .32); };
+$('bird').onclick = () => audio.bird(-.3);
 $('truck').onclick = () => {
   truckT = 0; state.truck.active = true; state.truck.progress = 0;
   audio.handle([{ type: 'truckEnter', guest: false }], state);

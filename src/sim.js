@@ -17,7 +17,7 @@ export function pourAt(tilt) {
 }
 
 const newTurn = (seat, trap, armed) => ({
-  seat, trap, armed, fill: 0, overflow: 0, spilled: false, stillTime: 0, waited: 0, teases: 0, pourWash: 0, pouring: false,
+  seat, trap, armed, fill: 0, overflow: 0, spilled: false, stillTime: 0, waited: 0, teases: 0, pourWash: 0, washed: 0, pouring: false,
 });
 
 export function createRun({ seed = 1, skipTutorial = false } = {}) {
@@ -108,6 +108,7 @@ function pourTick(s, h, tilt, aim, events) {
     s.wetTop = Math.min(1, s.wetTop + WET_RISE * flow * aim.topFrac * h);
     s.yerba -= wash;
     t.pourWash += wash;
+    t.washed += wash;
     t.stillTime = 0;
     if (s.yerba <= 0) return gameOver(s, 'lavado', events);
   } else {

@@ -135,27 +135,47 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
       });
     },
 
-    // a mid-sized street dog: a short pitched "woof" through a mouth-like band, plus a breathy burst
+    // a street dog a few houses away: a rough, noisy "wuf" shaped by two mouth formants, slightly growled,
+    // then muffled by distance and given a short slap off the walls. Each bark varies a little.
     bark(pan = .3, at = 0) {
       if (!ctx) return;
-      const t = ctx.currentTime + at;
-      const o = ctx.createOscillator(), bp = ctx.createBiquadFilter(), g = ctx.createGain(), p = ctx.createStereoPanner();
-      o.type = 'sawtooth';
-      o.frequency.setValueAtTime(420, t);
-      o.frequency.linearRampToValueAtTime(560, t + .025);
-      o.frequency.exponentialRampToValueAtTime(230, t + .13);
-      bp.type = 'bandpass'; bp.frequency.value = 850; bp.Q.value = 1.6;
-      g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(.32, t + .012);
-      g.gain.exponentialRampToValueAtTime(.001, t + .16);
+      const t = ctx.currentTime + at, v = .9 + Math.random() * .2;
+      const out = ctx.createGain(), p = ctx.createStereoPanner(), far = ctx.createBiquadFilter();
+      far.type = 'lowpass'; far.frequency.value = 2600;
       p.pan.value = Math.max(-1, Math.min(1, pan));
-      o.connect(bp).connect(g).connect(p).connect(master);
-      o.start(t); o.stop(t + .18);
-      const n = ctx.createBufferSource(), nb = ctx.createBiquadFilter(), ng = ctx.createGain();
-      n.buffer = noise; nb.type = 'bandpass'; nb.frequency.value = 1300; nb.Q.value = 1.2;
-      ng.gain.setValueAtTime(.16, t); ng.gain.exponentialRampToValueAtTime(.001, t + .09);
-      n.connect(nb).connect(ng).connect(p);
-      n.start(t, Math.random()); n.stop(t + .1);
+      out.gain.value = .55;
+      out.connect(far).connect(p).connect(master);
+      const echo = ctx.createDelay(); echo.delayTime.value = .085;
+      const echoGain = ctx.createGain(); echoGain.gain.value = .22;
+      out.connect(echo).connect(echoGain).connect(far);
+      // voiced part: a low buzzy pulse that drops in pitch, through a soft clipper for the growl
+      const o = ctx.createOscillator(), shaper = ctx.createWaveShaper(), og = ctx.createGain();
+      o.type = 'sawtooth';
+      o.frequency.setValueAtTime(260 * v, t);
+      o.frequency.linearRampToValueAtTime(330 * v, t + .03);
+      o.frequency.exponentialRampToValueAtTime(170 * v, t + .16);
+      shaper.curve = SOFT_CLIP;
+      og.gain.setValueAtTime(0, t);
+      og.gain.linearRampToValueAtTime(.5, t + .015);
+      og.gain.setTargetAtTime(0, t + .05, .045);
+      // breath: noise burst that carries the bark's bite
+      const n = ctx.createBufferSource(), ng = ctx.createGain();
+      n.buffer = noise;
+      ng.gain.setValueAtTime(0, t);
+      ng.gain.linearRampToValueAtTime(.7, t + .008);
+      ng.gain.setTargetAtTime(0, t + .03, .04);
+      // two formants, opening then closing like a jaw
+      const f1 = ctx.createBiquadFilter(), f2 = ctx.createBiquadFilter();
+      f1.type = 'bandpass'; f1.Q.value = 3; f2.type = 'bandpass'; f2.Q.value = 4;
+      f1.frequency.setValueAtTime(500 * v, t); f1.frequency.linearRampToValueAtTime(750 * v, t + .04); f1.frequency.linearRampToValueAtTime(450 * v, t + .18);
+      f2.frequency.setValueAtTime(1300 * v, t); f2.frequency.linearRampToValueAtTime(1700 * v, t + .04); f2.frequency.linearRampToValueAtTime(1100 * v, t + .18);
+      o.connect(shaper).connect(og);
+      n.connect(ng);
+      for (const src of [og, ng]) { src.connect(f1); src.connect(f2); }
+      const f2g = ctx.createGain(); f2g.gain.value = .6;
+      f1.connect(out); f2.connect(f2g).connect(out);
+      o.start(t); o.stop(t + .3);
+      n.start(t, Math.random()); n.stop(t + .3);
     },
 
     // a benteveo somewhere in the paraíso: "bien-te-veo", three quick whistles
@@ -257,6 +277,12 @@ export function createAudio({ musicUrl = 'audio/musica.mp3', truckUrl = 'audio/c
 
   return api;
 }
+
+const SOFT_CLIP = (() => {
+  const c = new Float32Array(256);
+  for (let i = 0; i < 256; i++) { const x = i / 128 - 1; c[i] = Math.tanh(x * 2.5); }
+  return c;
+})();
 
 function makeNoise(ctx, secs) {
   const buf = ctx.createBuffer(1, ctx.sampleRate * secs, ctx.sampleRate), d = buf.getChannelData(0);
